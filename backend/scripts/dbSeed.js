@@ -18,7 +18,11 @@ async function runSqlFile(filePath) {
 async function seedAdmin() {
   const adminName = process.env.ADMIN_NAME || 'Administrador CommerCity';
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@commercity.local';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin12345!';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminPassword || !adminPassword.trim()) {
+    throw new Error('Falta ADMIN_PASSWORD para crear o actualizar el administrador.');
+  }
 
   const [[adminRole]] = await pool.query(
     'SELECT id FROM roles WHERE nombre = ? LIMIT 1',
@@ -42,9 +46,6 @@ async function seedAdmin() {
   );
 
   console.log(`Seed administrador listo: ${adminEmail}`);
-  if (!process.env.ADMIN_PASSWORD) {
-    console.log('Advertencia: se usó contraseña temporal de desarrollo. Defina ADMIN_PASSWORD en .env para un entorno real.');
-  }
 }
 
 async function seed() {
