@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -10,8 +10,105 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
-<body data-page="vendedor" data-role-sidebar="vendedor"><main class="cc-container cc-section cc-seller-page"><div class="cc-section-title"><div><span class="cc-chip orange"><img class="cc-icon" src="assets/icons/cc-create-product.svg" alt=""> Inventario</span><h1 class="text-4xl font-bold mt-3">Crear o editar producto</h1><p class="cc-muted">Formulario visual preparado para publicar o editar productos.</p></div><a class="cc-btn outline" href="vendedor-productos.html">Cancelar</a></div><section class="cc-grid cols-2"><article class="cc-card"><h2 class="text-2xl font-bold mb-4">Datos del producto</h2><div id="productFormMsg"></div><form class="cc-form cc-form-grid" novalidate id="sellerProductForm"><label class="cc-label full">Nombre del producto<input class="cc-input" name="name" required></label><label class="cc-label">Categoría<input class="cc-input" name="category" required></label><label class="cc-label">Precio<input class="cc-input" name="price" type="number" min="1" required></label><label class="cc-label">Stock<input class="cc-input" name="stock" type="number" min="0" required></label><label class="cc-label">Estado<select class="cc-input" name="status"><option>Activo</option><option>Pausado</option></select></label><label class="cc-label full">Descripción<textarea class="cc-input" name="description" required></textarea></label><button class="cc-btn" type="submit">Guardar producto</button><a class="cc-btn outline" href="vendedor-productos.html">Cancelar</a></form><p class="cc-muted mt-3">Endpoint real de productos del vendedor pendiente de conexión.</p></article><article class="cc-card"><h2 class="text-2xl font-bold mb-4">Imágenes del producto</h2><div class="cc-upload-zone"><img class="cc-icon-lg" src="assets/icons/cc-product-image-upload.svg" alt=""><b>Área visual para múltiples imágenes</b><span>JPG, PNG o WebP cuando el backend acepte archivos.</span><button class="cc-btn outline" type="button">Subir imágenes</button></div></article></section></main><script type="module" src="js/main.js"></script>
+<body data-page="vendedor" data-role-sidebar="vendedor">
+<main class="cc-container cc-section cc-seller-page">
+
+  <!-- Encabezado de secciÃ³n -->
+  <div class="cc-section-title flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div>
+      <span class="cc-chip orange">
+        <img class="cc-icon" src="assets/icons/cc-create-product.svg" alt=""> Inventario
+      </span>
+      <h1 class="text-3xl md:text-4xl font-bold mt-3 Poppins">Crear o editar producto</h1>
+      <p class="cc-muted text-sm">Formulario visual preparado para publicar o editar productos en la tienda.</p>
+    </div>
+    <a class="cc-btn outline min-h-[44px] px-4 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm flex items-center justify-center transition-all" href="vendedor-productos.html">
+      Cancelar
+    </a>
+  </div>
+
+  <!-- Layout Formulario + GalerÃ­a -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Columna Izquierda: Datos del Producto -->
+    <article class="cc-card p-6 lg:col-span-2 space-y-4">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins mb-4">Datos del producto</h2>
+      <div id="productFormMsg"></div>
+
+      <form class="cc-form space-y-4" novalidate id="sellerProductForm">
+
+        <label class="cc-label block">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Nombre del producto *</span>
+          <input class="cc-input min-h-[44px] w-full" name="name" required placeholder="Ej: Morral urbano resistente al agua">
+        </label>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">CategorÃ­a *</span>
+            <input class="cc-input min-h-[44px] w-full" name="category" required placeholder="Ej: Accesorios">
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Precio *</span>
+            <input class="cc-input min-h-[44px] w-full" name="price" type="number" min="1" required placeholder="Ej: 89900">
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Stock disponible *</span>
+            <input class="cc-input min-h-[44px] w-full" name="stock" type="number" min="0" required placeholder="Ej: 15">
+          </label>
+        </div>
+
+        <label class="cc-label block">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Estado de publicaciÃ³n</span>
+          <select class="cc-select min-h-[44px] w-full" name="status">
+            <option value="activo">Activo (Visible en tienda)</option>
+            <option value="pausado">Pausado (Oculto)</option>
+          </select>
+        </label>
+
+        <label class="cc-label block">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">DescripciÃ³n detallada *</span>
+          <textarea class="cc-input cc-textarea w-full p-3 rounded-xl min-h-[100px]" name="description" required placeholder="Escribe las caracterÃ­sticas principales, materiales y especificaciones del producto..."></textarea>
+        </label>
+
+        <div class="flex items-center gap-3 pt-4">
+          <button class="cc-btn primary min-h-[44px] px-6 bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-base flex items-center justify-center transition-all active:scale-95 shadow-sm" type="submit">
+            Guardar producto
+          </button>
+          <a class="cc-btn outline min-h-[44px] px-4 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-sm flex items-center justify-center transition-all" href="vendedor-productos.html">
+            Cancelar
+          </a>
+        </div>
+      </form>
+
+      <p class="text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+        Conectado al API REST <code>/api/v1/products</code> de la tienda del vendedor.
+      </p>
+    </article>
+
+    <!-- Columna Derecha: ImÃ¡genes -->
+    <article class="cc-card p-6 space-y-4">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins mb-4">ImÃ¡genes del producto</h2>
+
+      <div class="cc-upload-zone p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center gap-3 bg-slate-50/50 dark:bg-slate-900/50 relative cursor-pointer group" title="Haz clic para seleccionar imÃ¡genes">
+        <input type="file" id="productImagesInput" accept="image/*" multiple class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-30">
+        <img id="productUploadIcon" class="cc-icon-lg w-12 h-12 text-[#2276ff] transition-transform group-hover:scale-105" src="assets/icons/cc-product-image-upload.svg" alt="">
+        <strong class="text-sm font-bold text-slate-900 dark:text-white">Carga mÃºltiple de imÃ¡genes</strong>
+        <span class="text-xs text-slate-500">MÃ¡ximo 5MB por archivo. Se convertirÃ¡ automÃ¡ticamente a formato WebP.</span>
+        <label for="productImagesInput" id="btnUploadProductImages" class="cc-btn outline min-h-[44px] px-4 mt-2 border border-[#2276ff] text-[#2276ff] hover:bg-blue-50 font-bold rounded-xl text-xs flex items-center justify-center transition-all cursor-pointer pointer-events-none">
+          Subir imÃ¡genes
+        </label>
+      </div>
+
+      <!-- PrevisualizaciÃ³n de imÃ¡genes procesadas en WebP -->
+      <div id="productGalleryPreview" class="grid grid-cols-2 gap-3 pt-2"></div>
+    </article>
+
+  </section>
+</main>
+
+<script type="module" src="js/main.js"></script>
 <script type="module" src="js/role-sidebar.js"></script>
 <script type="module" src="js/phase618.js"></script>
-<script type="module" src="js/seller.js"></script></body>
+<script type="module" src="js/seller.js"></script>
+</body>
 </html>
