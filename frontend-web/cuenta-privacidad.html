@@ -11,9 +11,107 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-page="comprador" data-role-sidebar="comprador">
-<main class="cc-container cc-section cc-buyer-page"><div class="cc-section-title"><div><span class="cc-chip orange"><img class="cc-icon" src="assets/icons/cc-privacy-security.svg" alt=""> Seguridad</span><h1 class="text-4xl font-bold mt-3">Cuenta y privacidad</h1><p class="cc-muted">Controles visuales preparados para proteger la cuenta del comprador.</p></div><a class="cc-btn outline" href="perfil.html">Volver al perfil</a></div><section class="cc-grid cols-2"><article class="cc-card"><h2 class="text-2xl font-bold">Seguridad de la cuenta</h2><p class="cc-muted">Correo verificado, contraseña protegida y recuperación preparada.</p><a class="cc-btn mt-4" href="reset-password.html">Cambiar contraseña</a></article><article class="cc-card"><h2 class="text-2xl font-bold">Sesiones activas</h2><p class="cc-muted">Visualiza y cierra sesiones cuando el endpoint esté conectado.</p><button class="cc-btn secondary mt-4" type="button">Cerrar sesiones</button></article><article class="cc-card"><h2 class="text-2xl font-bold">Datos y actividad</h2><p class="cc-muted">Exporta información o consulta la trazabilidad cuando los endpoints estén conectados.</p><div class="cc-card-actions-row mt-4"><button class="cc-btn success" type="button">Descargar datos</button><button class="cc-btn history" type="button">Ver historial</button></div></article><article class="cc-card"><h2 class="text-2xl font-bold">Preferencias de privacidad</h2><label class="cc-check-row"><input type="checkbox" checked> Recibir notificaciones de pedidos</label><label class="cc-check-row"><input type="checkbox"> Compartir actividad con vendedores</label><p class="cc-muted mt-3">Controles visuales sin persistencia real todavía.</p></article><article class="cc-card cc-danger-zone"><h2 class="text-2xl font-bold">Eliminación o desactivación</h2><p>Estas acciones deben confirmarse con seguridad cuando exista endpoint real.</p><div class="cc-card-actions-row mt-4"><button class="cc-btn danger" type="button">Desactivar cuenta</button><button class="cc-btn danger-strong" type="button">Eliminar permanentemente</button></div></article></section><section class="cc-alert mt-5">Endpoints reales de privacidad, sesiones y eliminación de cuenta pendientes de conexión.</section></main>
+<main class="cc-container cc-section cc-buyer-page">
+
+  <!-- Encabezado de la página -->
+  <div class="cc-section-title flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div>
+      <span class="cc-chip orange">
+        <img class="cc-icon" src="assets/icons/cc-privacy-security.svg" alt=""> Seguridad
+      </span>
+      <h1 class="text-3xl md:text-4xl font-bold mt-3 Poppins">Cuenta y Privacidad</h1>
+      <p class="cc-muted text-sm">Controles de seguridad para proteger tu cuenta y tus datos personales.</p>
+    </div>
+    <a class="cc-btn outline min-h-[44px] px-4 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm flex items-center justify-center transition-all" href="perfil.html">
+      Volver al perfil
+    </a>
+  </div>
+
+  <!-- Grid de Configuración de Privacidad -->
+  <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    <!-- Seguridad -->
+    <article class="cc-card p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between">
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Seguridad de la cuenta</h2>
+        <p class="cc-muted text-sm">Correo verificado, contraseña protegida y opciones de recuperación.</p>
+      </div>
+      <a class="cc-btn primary min-h-[44px] px-4 bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-sm flex items-center justify-center transition-all active:scale-95 shadow-sm mt-4" href="reset-password.html">
+        Cambiar contraseña
+      </a>
+    </article>
+
+    <!-- Sesiones -->
+    <article class="cc-card p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between">
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Sesiones activas</h2>
+        <p class="cc-muted text-sm">Visualiza y cierra sesiones en otros dispositivos.</p>
+      </div>
+      <button class="cc-btn secondary min-h-[44px] px-4 bg-[#2276ff] hover:bg-[#1a5ecc] text-white font-bold rounded-xl text-sm flex items-center justify-center transition-all active:scale-95 shadow-sm mt-4" type="button">
+        Cerrar sesiones activas
+      </button>
+    </article>
+
+    <!-- Datos y Exportación -->
+    <article class="cc-card p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between">
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Datos y actividad</h2>
+        <p class="cc-muted text-sm">Exporta la información de tus compras o consulta tu historial.</p>
+      </div>
+      <div class="flex items-center gap-2 mt-4">
+        <button class="cc-btn outline min-h-[44px] px-3 flex-1 border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-xl text-xs font-bold transition-all" type="button">
+          Descargar datos
+        </button>
+        <button class="cc-btn outline min-h-[44px] px-3 flex-1 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all" type="button">
+          Ver historial
+        </button>
+      </div>
+    </article>
+
+    <!-- Preferencias -->
+    <article class="cc-card p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl lg:col-span-2">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins mb-2">Preferencias de privacidad</h2>
+      <div class="space-y-3">
+        <label class="cc-check-row flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked class="w-4 h-4 rounded text-[#fa8000] border-slate-300 focus:ring-[#fa8000]">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Recibir notificaciones de pedidos por correo</span>
+        </label>
+        <label class="cc-check-row flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" class="w-4 h-4 rounded text-[#fa8000] border-slate-300 focus:ring-[#fa8000]">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Compartir actividad anónima para sugerencias de productos</span>
+        </label>
+      </div>
+    </article>
+
+    <!-- Estado de tu cuenta -->
+    <article class="cc-card p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl lg:col-span-3" id="accountStatusSection">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Estado de tu cuenta</h2>
+      <div id="accountStatusContent" class="text-sm text-slate-700 dark:text-slate-300 space-y-4">
+        <p class="cc-muted">Cargando estado de la cuenta...</p>
+      </div>
+    </article>
+
+    <!-- Zona de Peligro -->
+    <article class="cc-card cc-danger-zone p-6 space-y-4 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-2xl">
+      <h2 class="text-xl font-bold text-rose-900 dark:text-rose-300 Poppins">Zona de peligro</h2>
+      <p class="text-xs text-rose-700 dark:text-rose-400">Acciones permanentes sobre tu cuenta en CommerCity.</p>
+      <div id="accountDangerMsg" aria-live="polite"></div>
+      <div class="flex flex-col gap-2 pt-2">
+        <button data-deactivate-account class="cc-btn danger min-h-[44px] px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center justify-center transition-all" type="button">
+          Desactivar cuenta
+        </button>
+        <button data-delete-request class="cc-btn danger-strong min-h-[44px] px-4 bg-rose-800 hover:bg-rose-900 text-white font-bold rounded-xl text-xs flex items-center justify-center transition-all" type="button">
+          Solicitar eliminación
+        </button>
+      </div>
+    </article>
+
+  </section>
+</main>
+
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/role-sidebar.js"></script>
 <script type="module" src="js/phase617.js"></script>
+<script type="module" src="js/account-privacy.js"></script>
 </body>
 </html>
