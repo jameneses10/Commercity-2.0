@@ -47,8 +47,8 @@ async function findUserByEmail(correo) {
   return rows[0] || null;
 }
 
-async function findUserById(id) {
-  const [rows] = await pool.query(`${USER_SELECT} WHERE u.id = ? LIMIT 1`, [id]);
+async function findUserById(id, conn = pool) {
+  const [rows] = await conn.query(`${USER_SELECT} WHERE u.id = ? LIMIT 1`, [id]);
   return rows[0] || null;
 }
 
@@ -65,6 +65,31 @@ async function updateLastLogin(id){ await pool.query('UPDATE usuarios SET ultimo
 async function updatePassword(id,passwordHash,conn=pool){ await conn.query('UPDATE usuarios SET password_hash=? WHERE id=?',[passwordHash,id]); }
 async function updateBasic(id,{nombre,telefono}){ await pool.query('UPDATE usuarios SET nombre=COALESCE(?,nombre), telefono=? WHERE id=?',[nombre||null, telefono ?? null, id]); return findUserById(id); }
 async function deactivate(id){ await pool.query("UPDATE usuarios SET estado='inactivo', deleted_at=NOW() WHERE id=? AND estado='activo'",[id]); return findUserById(id); }
-async function upgradeToSeller(id, rolId){ await pool.query('UPDATE usuarios SET rol_id=? WHERE id=? AND estado=\'activo\'',[rolId,id]); return findUserById(id); }
+async function upgradeToSeller(id, rolId, fechaNacimiento = null) {
+  await pool.query(
+    `UPDATE usuarios
+     SET rol_id = ?,
+         fecha_nacimiento = COALESCE(fecha_nacimiento, ?)
+     WHERE id = ? AND estado = 'activo'`,
+    [rolId, fechaNacimiento, id]
+  );
+  return findUserById(id);
+}
 
-module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller };
+async function reactivateAccount(id, conn = pool) {
+  const [result] = await conn.query(
+    `UPDATE usuarios
+     SET estado = 'activo',
+         cuenta_desactivada = FALSE,
+         fecha_desactivacion = NULL,
+         deleted_at = NULL
+     WHERE id = ?
+       AND cuenta_desactivada = TRUE
+       AND anonimizado = FALSE
+       AND solicitud_eliminacion_estado <> 'aprobada'`,
+    [id]
+  );
+  return result.affectedRows;
+}
+
+module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount };

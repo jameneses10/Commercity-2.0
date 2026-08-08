@@ -7,19 +7,10 @@ const passwordResetService = require('./passwordReset.service');
 const accountService = require('./account.service');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { signToken } = require('../utils/jwt');
+const { isAdult } = require('../utils/age');
 
 const PUBLIC_REGISTER_ROLES = ['comprador', 'vendedor'];
 function err(message,statusCode){ const e=new Error(message); e.statusCode=statusCode; return e; }
-
-function isAdult(fechaNacimiento) {
-  const birth = new Date(`${fechaNacimiento}T00:00:00Z`);
-  if (Number.isNaN(birth.getTime())) return false;
-  const today = new Date();
-  let age = today.getUTCFullYear() - birth.getUTCFullYear();
-  const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) age -= 1;
-  return age >= 18;
-}
 
 async function registerUser({ nombre, correo, password, confirmPassword, rol, telefono = null, fecha_nacimiento = null, acepta_terminos, terms_accepted, terminos_version }, meta={}) {
   const normalizedEmail = correo.toLowerCase().trim();
@@ -50,6 +41,17 @@ async function registerUser({ nombre, correo, password, confirmPassword, rol, te
   }catch(e){ await conn.rollback(); throw e; } finally { conn.release(); }
 }
 
+async function reactivateUser({ correo, password }, meta = {}) {
+  const normalizedEmail = correo.toLowerCase().trim();
+  const user = await findUserByEmail(normalizedEmail);
+  const invalidCredentialsError = err('Credenciales inválidas.', 401);
+  if (!user) throw invalidCredentialsError;
+  const passwordIsValid = await comparePassword(password, user.password_hash);
+  if (!passwordIsValid) throw invalidCredentialsError;
+
+  return accountService.reactivate(user.id, meta);
+}
+
 async function loginUser({ correo, password }) {
   const normalizedEmail = correo.toLowerCase().trim();
   const user = await findUserByEmail(normalizedEmail);
@@ -78,4 +80,5 @@ module.exports = {
   forgotPassword: passwordResetService.forgotPassword,
   resetPassword: passwordResetService.resetPassword,
   changePassword: accountService.changePassword,
+  reactivateUser,
 };

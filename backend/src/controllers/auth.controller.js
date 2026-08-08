@@ -1,5 +1,5 @@
 const { validationResult } = require('express-validator');
-const { registerUser, loginUser, getAuthenticatedUser, forgotPassword, resetPassword, changePassword } = require('../services/auth.service');
+const { registerUser, loginUser, getAuthenticatedUser, forgotPassword, resetPassword, changePassword, reactivateUser } = require('../services/auth.service');
 const { successResponse, errorResponse } = require('../utils/response');
 
 function handleValidation(req, res) {
@@ -22,5 +22,6 @@ async function me(req, res, next) {
 async function forgot(req,res,next){ try{const validationResponse=handleValidation(req,res); if(validationResponse) return validationResponse; const result=await forgotPassword(req.body); return res.json(successResponse(result.message,result));}catch(e){next(e)} }
 async function reset(req,res,next){ try{const validationResponse=handleValidation(req,res); if(validationResponse) return validationResponse; const result=await resetPassword(req.body); return res.json(successResponse('Contraseña restablecida correctamente.',result));}catch(e){next(e)} }
 async function change(req,res,next){ try{const validationResponse=handleValidation(req,res); if(validationResponse) return validationResponse; const result=await changePassword(req.user.id,req.body); return res.json(successResponse('Contraseña actualizada correctamente.',result));}catch(e){next(e)} }
+async function reactivate(req,res,next){ try{const validationResponse=handleValidation(req,res); if(validationResponse) return validationResponse; await reactivateUser(req.body,{ip:req.ip,userAgent:req.get('user-agent')}); return res.status(200).json(successResponse('Tu cuenta fue reactivada correctamente.'));}catch(e){next(e)} }
 async function adminTest(req, res) { return res.status(200).json(successResponse('Ruta temporal de administrador funcionando correctamente.', { user: req.user, temporary: true })); }
-module.exports = { register, login, me, forgot, reset, change, adminTest };
+module.exports = { register, login, me, forgot, reset, change, adminTest, reactivate };

@@ -7,7 +7,14 @@ const settingsValidator=[
 ];
 const changePasswordValidator=[body('currentPassword').notEmpty().withMessage('La contraseña actual es obligatoria.'), body('newPassword').isLength({min:8,max:100}).withMessage('La nueva contraseña debe tener al menos 8 caracteres.'), body('confirmPassword').notEmpty().withMessage('Debe confirmar la nueva contraseña.')];
 const changeEmailValidator=[body('currentPassword').notEmpty().withMessage('La contraseña actual es obligatoria.'), body('newEmail').isEmail().withMessage('Correo inválido.').normalizeEmail()];
-const deleteRequestValidator=[body('motivo').optional({nullable:true,checkFalsy:true}).trim().isLength({max:500}).withMessage('El motivo no debe superar 500 caracteres.')];
+const deleteRequestValidator=[
+  body('confirmar_eliminacion').isBoolean({ strict: true }).custom(v => v === true).withMessage('Debe confirmar explícitamente la solicitud de eliminación de la cuenta.'),
+  body('motivo').optional({nullable:true,checkFalsy:true}).trim().isLength({max:500}).withMessage('El motivo no debe superar 500 caracteres.')
+];
+const deleteRequestDetailValidator=[param('id').isInt({min:1}).withMessage('ID inválido.')];
 const resolveDeleteRequestValidator=[param('id').isInt({min:1}).withMessage('Usuario inválido.'), body('estado').isIn(['aprobada','rechazada']).withMessage('Estado no permitido.'), body('respuesta_admin').optional({nullable:true,checkFalsy:true}).trim().isLength({max:2000}).withMessage('Respuesta muy larga.')];
-const upgradeValidator=[ body('acceptSellerTerms').custom((v,{req})=>v===true || req.body.seller_terms_accepted===true).withMessage('Debe aceptar las condiciones de vendedor.') ];
-module.exports={settingsValidator,changePasswordValidator,changeEmailValidator,deleteRequestValidator,resolveDeleteRequestValidator,upgradeValidator};
+const upgradeValidator=[
+  body('acceptSellerTerms').custom((v,{req})=>v===true || req.body.seller_terms_accepted===true).withMessage('Debe aceptar las condiciones de vendedor.'),
+  body('fecha_nacimiento').optional().isISO8601().withMessage('La fecha de nacimiento debe tener un formato válido (YYYY-MM-DD).')
+];
+module.exports={settingsValidator,changePasswordValidator,changeEmailValidator,deleteRequestValidator,deleteRequestDetailValidator,resolveDeleteRequestValidator,upgradeValidator};

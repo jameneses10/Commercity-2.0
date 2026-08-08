@@ -70,6 +70,14 @@ async function listActiveProductsByStore(storeId, { limit, offset }) {
   return { rows, total: count.total };
 }
 
+async function pauseStoreBySellerId(usuarioId, conn = pool) {
+  const [result] = await conn.query(
+    `UPDATE tiendas SET estado = 'pausada' WHERE usuario_id = ? AND estado = 'activa'`,
+    [usuarioId]
+  );
+  return result.affectedRows;
+}
+
 module.exports = {
   findStoreBySellerId,
   findStoreById,
@@ -78,4 +86,5 @@ module.exports = {
   createStore,
   updateStoreById,
   listActiveProductsByStore,
+  pauseStoreBySellerId,
 };

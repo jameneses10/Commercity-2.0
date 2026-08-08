@@ -54,7 +54,80 @@ async function reviewsPage(){ const reviews=(await safe('/admin/reviews')).data?
 async function commissionsPage(){ const commissions=(await safe('/admin/commissions')).data?.commissions||[]; main().innerHTML=shell('Comisiones','cc-commission.svg','Finanzas','Comisiones reales del marketplace.')+filters('commissions',[['all','Mes actual'],['pendiente','Pendientes'],['pagada','Pagadas'],['revisada','Revisadas'],['rechazada','Rechazadas']],null)+`<section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Tienda</th><th>Pedido</th><th>Venta</th><th>%</th><th>Comisión</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${commissions.map(c=>`<tr data-admin-item="commissions" data-status="${esc(norm(c.estado))}" data-filter-text="${esc(JSON.stringify(c))}"><td>${esc(c.tienda_nombre||'')}</td><td>#${esc(c.pedido_id)}</td><td>${money(c.valor_venta||0)}</td><td>${esc(c.porcentaje_comision||0)}%</td><td>${money(c.valor_comision||0)}</td><td><span class="cc-chip ${chipClass(c.estado)}">${esc(c.estado)}</span></td><td><div class="cc-mini-actions"><button type="button" data-commission-status="${esc(c.id)}" data-next-status="pagada">Marcar pagada</button><button type="button" data-commission-status="${esc(c.id)}" data-next-status="revisada">Revisar</button></div></td></tr>`).join('')}</tbody></table></section>${commissions.length?'':empty('cc-commission.svg','Sin comisiones reales.','El endpoint administrativo de comisiones respondió vacío.')}`; bindFilters(main()); }
 async function notificationsPage(){ const [res,count]=await Promise.all([safe('/notifications'),safe('/notifications/unread-count')]); const nots=res.data?.notifications||[]; main().innerHTML=shell('Notificaciones','cc-notification-bell.svg','Alertas','Notificaciones reales del administrador.',`<button class="cc-btn" type="button" data-read-all>Marcar todas leídas (${count.data?.unread_count||0})</button>`)+filters('notifications',[['all','Todas'],['pedido','Pedidos'],['pago','Pagos'],['envio','Envíos'],['devolucion','Devoluciones'],['sistema','Sistema']],'Buscar notificación')+`<section class="cc-grid cols-2">${nots.map(n=>`<article class="cc-card" data-admin-item="notifications" data-status="${esc(norm(n.tipo||'sistema'))}" data-filter-text="${esc(`${n.titulo} ${n.mensaje} ${n.tipo}`)}"><span class="cc-chip ${n.leida?'neutral':'orange'}">${n.leida?'Leída':'No leída'}</span><h2>${esc(n.titulo)}</h2><p class="cc-muted">${esc(n.mensaje)}</p><small>${esc(n.created_at||'')}</small><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-notification-read="${esc(n.id)}">Marcar leída</button><button class="cc-btn secondary" type="button" data-notification-delete="${esc(n.id)}">Eliminar</button></div></article>`).join('')}</section>${nots.length?'':empty('cc-notification-bell.svg','Sin notificaciones reales.','La API no devolvió notificaciones.')}`; bindFilters(main()); }
 async function logsPage(){ const logs=(await safe('/admin/logs')).data?.logs||[]; main().innerHTML=shell('Logs','cc-audit-logs.svg','Auditoría','Logs reales del sistema.')+filters('logs',[['all','Todos'],['auth','Autenticación'],['producto','Productos'],['pedido','Pedidos'],['pago','Pagos'],['error','Errores']],'Buscar log')+`<section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Fecha</th><th>IP</th></tr></thead><tbody>${logs.map(l=>`<tr data-admin-item="logs" data-status="${esc(norm(l.entidad||l.modulo||'sistema'))}" data-filter-text="${esc(JSON.stringify(l))}"><td>${esc(l.usuario_nombre||l.usuario_id||'Sistema')}</td><td>${esc(l.accion)}</td><td>${esc(l.entidad||l.modulo||'')}</td><td>${esc(l.created_at||'')}</td><td>${esc(l.ip||'')}</td></tr>`).join('')}</tbody></table></section>${logs.length?'':empty('cc-audit-logs.svg','Sin logs reales.','La API no devolvió logs.')}`; bindFilters(main()); }
-async function reportsPage(){ const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]); const s=stats.data?.stats||{}; main().innerHTML=shell('Reportes','cc-reports-analytics.svg','Reportes','Resumen real construido con endpoints administrativos.')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Usuarios activos</b><strong>${esc(s.total_usuarios_activos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Productos</b><strong>${esc(s.total_productos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Pedidos</b><strong>${esc(s.total_pedidos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Ventas</b><strong>${money(s.ventas_totales||0)}</strong><span>pagadas</span></article></section><section class="cc-grid cols-3 mt-5"><article class="cc-card"><h2>Reportes de productos</h2><strong>${pr.data?.reports?.length||0}</strong></article><article class="cc-card"><h2>Reportes de usuarios</h2><strong>${ur.data?.reports?.length||0}</strong></article><article class="cc-card"><h2>Devoluciones</h2><strong>${ret.data?.returns?.length||0}</strong></article><article class="cc-card"><h2>Solicitudes de cuenta</h2><strong>${del.data?.requests?.length||0}</strong></article><article class="cc-card"><h2>Logs recientes</h2><strong>${logs.data?.logs?.length||0}</strong></article></section>`; }
-function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
+async function reportsPage(){
+  const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
+  const s=stats.data?.stats||{};
+  const requests = del.data?.requests||[];
+  main().innerHTML=shell('Reportes','cc-reports-analytics.svg','Reportes','Resumen real construido con endpoints administrativos.')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Usuarios activos</b><strong>${esc(s.total_usuarios_activos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Productos</b><strong>${esc(s.total_productos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Pedidos</b><strong>${esc(s.total_pedidos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Ventas</b><strong>${money(s.ventas_totales||0)}</strong><span>pagadas</span></article></section>`+
+  `<section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Solicitudes de eliminación de cuenta</h2>`+
+  `<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>`+
+  requests.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.correo)}</td><td>${esc(r.rol)}</td><td><span class="cc-chip ${chipClass(r.solicitud_eliminacion_estado)}">${esc(r.solicitud_eliminacion_estado)}</span></td><td>${esc(r.solicitud_eliminacion_fecha)}</td><td><button class="cc-btn outline" type="button" data-review-delete-request="${esc(r.id)}">Revisar</button></td></tr>`).join('')+
+  `</tbody></table></div></section>`+
+  `<section id="deleteRequestDetailPanel" class="mt-5"></section>`;
+}
+
+window.reviewDeleteRequest = async function(id) {
+  const panel = document.getElementById('deleteRequestDetailPanel');
+  if(!panel) return;
+  panel.innerHTML = '<div class="cc-card"><p>Cargando detalle...</p></div>';
+  const res = await safe(`/admin/account-delete-requests/${id}`);
+  if(res.error) {
+    panel.innerHTML = `<div class="cc-card cc-soft-warning"><p>Error: ${esc(res.error.message)}</p></div>`;
+    return;
+  }
+  const req = res.data?.request;
+  const pending = res.data?.pending_operations;
+  const canApprove = res.data?.can_approve;
+  const total = pending?.total || 0;
+
+  let html = `<section class="cc-card">
+    <h2 class="text-2xl font-bold mb-3">Detalle de Solicitud #${esc(req.id)}</h2>
+    <div class="grid cols-2 gap-4 mb-4" style="display:flex;gap:20px;">
+      <div><p class="cc-muted">Usuario:</p><p>${esc(req.nombre)} (${esc(req.correo)})</p></div>
+      <div><p class="cc-muted">Estado actual:</p><p><span class="cc-chip ${chipClass(req.solicitud_eliminacion_estado)}">${esc(req.solicitud_eliminacion_estado)}</span></p></div>
+    </div>
+    <div class="cc-card cc-soft-warning mb-4" style="background:#fff3cd;padding:1rem;">
+      <h3 class="font-bold mb-2">Operaciones pendientes</h3>
+      <ul>
+        <li>Pedidos pendientes: ${esc(pending?.pedidos || 0)}</li>
+        <li>Envíos pendientes: ${esc(pending?.envios || 0)}</li>
+        <li>Devoluciones pendientes: ${esc(pending?.devoluciones || 0)}</li>
+        <li>Reembolsos pendientes: ${esc(pending?.reembolsos || 0)}</li>
+      </ul>
+      <p class="mt-2 font-bold">Total operaciones pendientes: ${esc(total)}</p>
+    </div>
+    <p class="mb-4 font-bold" style="color: ${total > 0 ? 'red' : 'green'}">
+      ${total > 0 ? 'La solicitud todavía no puede aprobarse.' : 'La solicitud puede aprobarse.'}
+    </p>`;
+      if(req.solicitud_eliminacion_estado === 'pendiente') {
+    html += `<form id="resolveDeleteRequestForm" data-request-id="${esc(req.id)}">
+      <label class="cc-label full">Respuesta para el usuario (opcional):
+        <textarea class="cc-input" name="respuesta_admin" rows="2"></textarea>
+      </label>
+      <div id="resolveMsg"></div>
+      <div class="cc-card-actions-row mt-3">
+        <button class="cc-btn" type="button" onclick="submitResolveDeleteRequest(${req.id}, 'aprobada')" ${total > 0 ? 'disabled' : ''}>Aprobar eliminación</button>
+        <button class="cc-btn secondary" type="button" onclick="submitResolveDeleteRequest(${req.id}, 'rechazada')">Rechazar solicitud</button>
+      </div>
+    </form>`;
+  }
+  html += `</section>`;
+  panel.innerHTML = html;
+};
+
+window.submitResolveDeleteRequest = async function(id, estado) {
+  const form = document.getElementById('resolveDeleteRequestForm');
+  const msg = document.getElementById('resolveMsg');
+  const respuesta = form.querySelector('[name="respuesta_admin"]').value || (estado === 'aprobada' ? 'Solicitud aprobada por el administrador.' : 'Solicitud rechazada por el administrador.');
+  try {
+    const res = await patchSafe(`/admin/account-delete-requests/${id}`, { estado, respuesta_admin: respuesta });
+    msg.innerHTML = `<p style="color:green">Operación exitosa: ${esc(res.message || 'ok')}</p>`;
+    setTimeout(() => reportsPage(), 1500);
+  } catch(e) {
+    msg.innerHTML = `<p style="color:red">Error: ${esc(e.message)}</p>`;
+    setTimeout(() => window.reviewDeleteRequest(id), 2500);
+  }
+};
+function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.reviewDeleteRequest){ window.reviewDeleteRequest(b.dataset.reviewDeleteRequest); return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
 async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
 init();
