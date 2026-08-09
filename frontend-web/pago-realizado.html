@@ -11,7 +11,85 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-page="carrito">
-<main class="cc-container cc-section"><section class="cc-card text-center cc-confirmation"><img class="mx-auto mb-4 cc-confirm-icon" src="assets/icons/cc-payment-approved.svg" alt="Pago aprobado"><span class="cc-chip orange">Confirmación sandbox</span><h1 class="text-4xl font-bold mt-4">Pago realizado</h1><p class="cc-muted mt-3">Confirmación visual preparada para el flujo de pagos sandbox. Cuando el backend de pedidos esté conectado, aquí verás el número de orden, vendedor y guía de envío.</p><div class="cc-grid cols-3 mt-6 text-left"><article class="cc-card"><img class="cc-icon" src="assets/icons/cc-order-detail.svg" alt=""><b>Pedido</b><p class="cc-muted">Validación preparada</p></article><article class="cc-card"><img class="cc-icon" src="assets/icons/cc-notifications.svg" alt=""><b>Notificación</b><p class="cc-muted">Aviso al vendedor</p></article><article class="cc-card"><img class="cc-icon" src="assets/icons/cc-shipping-package.svg" alt=""><b>Envío</b><p class="cc-muted">Guía pendiente</p></article></div><div class="flex flex-wrap justify-center gap-3 mt-6"><a class="cc-btn" href="comprador.html">Ir al panel comprador</a><a class="cc-btn outline" href="productos.html">Seguir comprando</a></div></section></main>
+<main class="cc-container cc-section py-12" data-payment-result-root style="display: none;">
+
+  <section class="cc-card p-8 md:p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm max-w-3xl mx-auto space-y-6">
+
+    <!-- Icono de Confirmación -->
+    <div class="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-4 mx-auto flex items-center justify-center shadow-md">
+      <img class="w-full h-full object-contain" src="assets/icons/cc-payment-approved.svg" alt="Pago aprobado">
+    </div>
+
+    <!-- Título y Badge -->
+    <div class="space-y-2">
+      <span class="cc-chip orange text-xs font-semibold px-3 py-1 bg-amber-50 text-[#fa8000] rounded-full border border-amber-200" data-payment-result-order>
+        Confirmación Sandbox Exitosa
+      </span>
+      <h1 class="text-3xl md:text-5xl font-bold text-slate-900 dark:text-white Poppins pt-2" data-payment-result-status>¡Pago realizado con éxito!</h1>
+      <p class="cc-muted text-base max-w-xl mx-auto" data-payment-result-message>
+        Tu pedido ha sido registrado en nuestro entorno sandbox de prueba. El vendedor ha sido notificado para preparar tu paquete.
+      </p>
+    </div>
+
+    <!-- Pasos de Resumen (3 Columnas) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 text-left">
+      <article class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+        <div class="flex items-center gap-2 mb-1">
+          <img class="cc-icon w-5 h-5 text-[#fa8000]" src="assets/icons/cc-order-detail.svg" alt="">
+          <b class="text-sm text-slate-900 dark:text-white Poppins">Pedido</b>
+        </div>
+        <p class="text-xs text-slate-500">Confirmación enviada por correo</p>
+      </article>
+
+      <article class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+        <div class="flex items-center gap-2 mb-1">
+          <img class="cc-icon w-5 h-5 text-[#2276ff]" src="assets/icons/cc-notifications.svg" alt="">
+          <b class="text-sm text-slate-900 dark:text-white Poppins">Notificación</b>
+        </div>
+        <p class="text-xs text-slate-500">Aviso automático a la tienda</p>
+      </article>
+
+      <article class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+        <div class="flex items-center gap-2 mb-1">
+          <img class="cc-icon w-5 h-5 text-emerald-600" src="assets/icons/cc-shipping-package.svg" alt="">
+          <b class="text-sm text-slate-900 dark:text-white Poppins">Envío</b>
+        </div>
+        <p class="text-xs text-slate-500" data-payment-result-shipments>Guía de transporte en preparación</p>
+      </article>
+    </div>
+
+    <!-- Botonera de Acción -->
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+      <a class="cc-btn primary min-h-[48px] px-6 bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-base flex items-center justify-center transition-all active:scale-95 shadow-md w-full sm:w-auto" href="mis-pedidos.html">
+        Ir a mis pedidos
+      </a>
+      <a class="cc-btn outline min-h-[48px] px-6 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-base flex items-center justify-center transition-all w-full sm:w-auto" href="productos.html">
+        Seguir comprando
+      </a>
+    </div>
+
+  </section>
+
+</main>
+
+<main class="cc-container cc-section py-12" data-payment-result-empty style="display: none;">
+  <section class="cc-card p-8 md:p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm max-w-2xl mx-auto space-y-6">
+    <div class="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 mx-auto flex items-center justify-center">
+      <img class="w-full h-full object-contain opacity-50 grayscale" src="assets/icons/cc-order-detail.svg" alt="Sin resultado">
+    </div>
+    <div class="space-y-2">
+      <h1 class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white Poppins">No hay un resultado de pago disponible.</h1>
+      <p class="cc-muted text-base">No hemos encontrado un resultado de pago reciente en esta sesión.</p>
+    </div>
+    <div class="pt-4">
+      <a class="cc-btn primary inline-flex px-6 bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl h-[48px] items-center justify-center transition-all" href="mis-pedidos.html">
+        Ir a mis pedidos
+      </a>
+    </div>
+  </section>
+</main>
+
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/payment-result.js"></script>
 </body>
 </html>
