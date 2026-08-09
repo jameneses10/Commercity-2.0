@@ -11,9 +11,109 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-page="comprador" data-role-sidebar="comprador">
-<main class="cc-container cc-section cc-buyer-page" data-profile-root><div class="cc-section-title"><div><span class="cc-chip orange"><img class="cc-icon" src="assets/icons/cc-user-profile.svg" alt=""> Cuenta comprador</span><h1 class="text-4xl font-bold mt-3">Mi perfil</h1><p class="cc-muted">Datos personales conectados a la sesión real cuando exista token activo.</p></div><a class="cc-btn outline" href="cuenta-privacidad.html">Cuenta y privacidad</a></div><section class="cc-grid cols-2 min-w-0"><article class="cc-card cc-profile-card min-w-0"><div class="cc-avatar-xl"><img src="assets/icons/cc-user-avatar.svg" alt="Foto de perfil"></div><h2 class="text-2xl font-bold break-words" style="overflow-wrap:anywhere;word-break:break-word;" data-profile-name>Comprador CommerCity</h2><p class="cc-muted break-words" style="overflow-wrap:anywhere;word-break:break-word;" data-profile-email>comprador@example.com</p><p><b>Rol:</b> <span data-profile-role>Comprador</span></p><p><b>Estado:</b> <span class="cc-chip blue" data-profile-status>Cuenta activa</span></p><button class="cc-btn outline" type="button">Cambiar foto de perfil</button></article><article class="cc-card"><h2 class="text-2xl font-bold mb-4">Datos personales</h2><div id="profileMsg"></div><form class="cc-form cc-form-grid" novalidate data-visual-form="profileMsg" data-profile-form><label class="cc-label">Nombre completo<input class="cc-input" name="nombre" value="Comprador" required></label><label class="cc-label">Correo<input class="cc-input" name="correo" type="email" value="comprador@example.com" required></label><label class="cc-label">Teléfono<input class="cc-input" name="telefono" value="3000000000"></label><label class="cc-label">Fecha de nacimiento<input class="cc-input" type="date"></label><label class="cc-label">Documento<input class="cc-input" placeholder="Opcional"></label><button class="cc-btn" type="submit">Guardar cambios</button></form><p class="cc-muted mt-3">La lectura de perfil usa /auth/me. La edición queda visual hasta habilitar endpoint de actualización en esta pantalla.</p></article></section></main>
+<main class="cc-container cc-section cc-buyer-page" data-profile-root>
+
+  <!-- Encabezado de la pÃ¡gina -->
+  <div class="cc-section-title flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div>
+      <span class="cc-chip orange">
+        <img class="cc-icon" src="assets/icons/cc-user-profile.svg" alt=""> Cuenta comprador
+      </span>
+      <h1 class="text-3xl md:text-4xl font-bold mt-3 Poppins">Mi perfil</h1>
+      <p class="cc-muted text-sm">Datos personales conectados a la sesiÃ³n real cuando exista token activo.</p>
+    </div>
+    <a class="cc-btn outline min-h-[44px] px-4 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-sm flex items-center justify-center transition-all" href="cuenta-privacidad.html">
+      Cuenta y privacidad
+    </a>
+  </div>
+
+  <!-- Layout Principal Perfil -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
+
+    <!-- Tarjeta Lateral de Avatar e Identidad -->
+    <article class="cc-card cc-profile-card p-6 min-w-0 space-y-4 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center">
+
+      <!-- Contenedor Avatar Cliqueable Nativo -->
+      <label for="profileAvatarInput" id="profileAvatarWrap" class="cc-avatar-xl w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 p-1 border-2 border-[#fa8000] flex items-center justify-center shadow-md overflow-hidden relative group cursor-pointer" title="Haz clic para cambiar foto de perfil">
+        <img class="w-full h-full object-cover rounded-full transition-transform group-hover:scale-105" src="assets/icons/cc-user-avatar.svg" alt="Foto de perfil" data-profile-avatar id="profileAvatarImg">
+        <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+      </label>
+
+      <div class="space-y-1 w-full">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins break-words" data-profile-name>Comprador CommerCity</h2>
+        <p class="cc-muted text-xs break-words" data-profile-email>comprador@example.com</p>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2 text-xs">
+        <span class="font-medium text-slate-500">Rol:</span>
+        <span class="font-bold text-slate-900 dark:text-white" data-profile-role>Comprador</span>
+      </div>
+
+      <div>
+        <span class="cc-chip blue text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200" data-profile-status>Cuenta activa</span>
+      </div>
+
+      <!-- BotÃ³n e Input Nativo Transparente -->
+      <div class="relative w-full mt-2">
+        <input type="file" id="profileAvatarInput" accept="image/jpeg,image/png,image/webp" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-20">
+        <label for="profileAvatarInput" id="btnChangeAvatar" class="cc-btn outline w-full min-h-[44px] border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-xs transition-all flex items-center justify-center cursor-pointer relative z-10 pointer-events-none">
+          Cambiar foto de perfil
+        </label>
+      </div>
+    </article>
+
+    <!-- Tarjeta Principal de Formulario -->
+    <article class="cc-card p-6 lg:col-span-2 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins mb-4">Datos personales</h2>
+      <div id="profileMsg"></div>
+
+      <form class="cc-form space-y-4" novalidate data-visual-form="profileMsg" data-profile-form>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="cc-label block">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Nombre completo *</span>
+            <input class="cc-input min-h-[44px] w-full bg-slate-50 dark:bg-slate-800" name="nombre" value="Comprador" required readonly>
+          </label>
+          <label class="cc-label block">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Correo electrÃ³nico *</span>
+            <input class="cc-input min-h-[44px] w-full bg-slate-50 dark:bg-slate-800" name="correo" type="email" value="comprador@example.com" required readonly>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <label class="cc-label block">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">TelÃ©fono</span>
+            <input class="cc-input min-h-[44px] w-full bg-slate-50 dark:bg-slate-800" name="telefono" value="3000000000" readonly>
+          </label>
+          <label class="cc-label block">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Fecha de nacimiento</span>
+            <input class="cc-input min-h-[44px] w-full bg-slate-50 dark:bg-slate-800 cursor-not-allowed" type="date" disabled>
+          </label>
+          <label class="cc-label block">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Documento de identidad</span>
+            <input class="cc-input min-h-[44px] w-full bg-slate-50 dark:bg-slate-800" placeholder="Opcional" readonly>
+          </label>
+        </div>
+
+        <div class="pt-4">
+          <button class="cc-btn primary min-h-[44px] px-6 bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-base flex items-center justify-center transition-all active:scale-95 shadow-sm" type="submit">
+            Guardar cambios
+          </button>
+        </div>
+      </form>
+
+      <p class="text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+        Lectura de perfil conectada con <code>/api/v1/auth/me</code>.
+      </p>
+    </article>
+
+  </section>
+</main>
+
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/role-sidebar.js"></script>
-<script type="module" src="js/phase617.js"></script><script type="module" src="js/profile.js"></script>
+<script type="module" src="js/phase617.js"></script>
+<script type="module" src="js/profile.js"></script>
 </body>
 </html>
