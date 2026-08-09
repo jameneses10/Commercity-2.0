@@ -10,8 +10,191 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
-<body data-page="carrito">
-<main class="cc-container cc-section"><section class="cc-card cc-module-hero"><span class="cc-chip orange"><img class="cc-icon" src="assets/icons/cc-checkout.svg" alt=""> Checkout seguro</span><h1 class="text-4xl font-bold mt-3">Proceso de pago</h1><p class="cc-muted">Confirma tu dirección, método de pago y resumen del pedido.</p></section><section class="cc-checkout-steps"><article class="done"><img class="cc-icon" src="assets/icons/cc-shopping-cart.svg" alt=""><b>1 Carrito</b></article><article class="active"><img class="cc-icon" src="assets/icons/cc-address-location.svg" alt=""><b>2 Dirección</b></article><article><img class="cc-icon" src="assets/icons/cc-credit-card.svg" alt=""><b>3 Pago</b></article><article><img class="cc-icon" src="assets/icons/cc-payment-approved.svg" alt=""><b>4 Confirmación</b></article></section><section class="cc-checkout-layout"><div class="grid gap-5"><form class="cc-card cc-form"><h2 class="text-2xl font-bold">Dirección de entrega</h2><label class="cc-label">Direcciones guardadas<select class="cc-select"><option>Calle principal # 12-45, Bogotá</option><option>Agregar nueva dirección</option></select></label><div class="cc-grid cols-2"><label class="cc-label">Nombre receptor<input class="cc-input" value="Comprador CommerCity"></label><label class="cc-label">Ciudad<input class="cc-input" value="Bogotá"></label><label class="cc-label">Dirección<input class="cc-input" value="Calle principal # 12-45"></label><label class="cc-label">Teléfono<input class="cc-input" value="300 000 0000"></label></div></form><form class="cc-card cc-form" data-payment-form><h2 class="text-2xl font-bold">Método de pago sandbox</h2><label class="cc-label">Método<select class="cc-select"><option>Tarjeta sandbox</option><option>Billetera CommerCity sandbox</option></select></label><div class="cc-grid cols-2"><label class="cc-label">Número de tarjeta<input class="cc-input" placeholder="4242 4242 4242 4242"></label><label class="cc-label">Fecha vencimiento<input class="cc-input" placeholder="12/30"></label><label class="cc-label">CVV<input class="cc-input" placeholder="123"></label><label class="cc-label">Nombre en tarjeta<input class="cc-input" placeholder="Comprador CommerCity"></label></div><label class="cc-check"><input type="checkbox"> <span>Guardar método para futuras compras</span></label><div class="cc-alert ok">Pago sandbox protegido. No se ejecuta pago real en esta vista.</div></form></div><aside class="grid gap-5"><section class="cc-card"><h2 class="text-2xl font-bold">Resumen del pedido</h2><div class="cc-order-line"><span>Morral urbano CommerCity x1</span><b>$ 129.900</b></div><div class="cc-order-line"><span>Audífonos inalámbricos x1</span><b>$ 89.900</b></div><div class="cc-order-line"><span>Subtotal</span><b>$ 219.800</b></div><div class="cc-order-line"><span>Envío</span><b>$ 12.000</b></div><div class="cc-order-line"><span>IVA estimado</span><b>$ 0</b></div><div class="cc-order-total"><span>Total</span><strong>$ 231.800</strong></div><button class="cc-btn w-full mt-4" type="button" data-payment-prepare><span class="cc-btn-icon"><img class="cc-icon" src="assets/icons/cc-security-payment-lock.svg" alt=""></span>Preparar pago seguro</button><a class="cc-btn outline w-full mt-3" href="carrito.html">Volver al carrito</a><div class="cc-alert mt-3 cc-hidden" data-payment-message>Pago preparado para validación sandbox.</div></section><section class="cc-card"><h2 class="text-2xl font-bold">Seguridad del proceso</h2><div class="cc-activity-list compact"><article class="cc-activity-item"><img class="cc-icon" src="assets/icons/cc-payment-sandbox.svg" alt=""><span><b>Pago sandbox</b><small>Ambiente académico controlado.</small></span></article><article class="cc-activity-item"><img class="cc-icon" src="assets/icons/cc-order-detail.svg" alt=""><span><b>Validación de pedido</b><small>Confirmación antes de registrar compra.</small></span></article><article class="cc-activity-item"><img class="cc-icon" src="assets/icons/cc-notifications.svg" alt=""><span><b>Notificación al vendedor</b><small>Preparado para integración.</small></span></article><article class="cc-activity-item"><img class="cc-icon" src="assets/icons/cc-shipping-package.svg" alt=""><span><b>Generación de envío</b><small>Guía y estado posterior.</small></span></article><article class="cc-activity-item"><img class="cc-icon" src="assets/icons/cc-audit-logs.svg" alt=""><span><b>Auditoría administrativa</b><small>Seguimiento de eventos.</small></span></article></div></section></aside></section></main>
+<body data-page="carrito" data-checkout-root>
+<main class="cc-container cc-section">
+  <!-- Banner Hero -->
+  <section class="cc-card cc-module-hero mb-6">
+    <span class="cc-chip orange">
+      <img class="cc-icon" src="assets/icons/cc-checkout.svg" alt=""> Checkout seguro
+    </span>
+    <h1 class="text-3xl md:text-4xl font-bold mt-3 Poppins">Proceso de pago</h1>
+    <p class="cc-muted">Confirma tu dirección, método de pago y resumen del pedido.</p>
+  </section>
+
+  <!-- Notice Sandbox -->
+  <div class="cc-sandbox-notice">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    <span><strong>Entorno Sandbox Activo:</strong> Todas las transacciones se realizan en un entorno de pruebas seguro. No se realizarán cargos a tarjetas de crédito reales.</span>
+  </div>
+
+  <!-- Pasos del Checkout -->
+  <section class="cc-checkout-steps my-6">
+    <article class="done">
+      <img class="cc-icon" src="assets/icons/cc-shopping-cart.svg" alt="">
+      <b>1. Carrito</b>
+    </article>
+    <article class="active">
+      <img class="cc-icon" src="assets/icons/cc-address-location.svg" alt="">
+      <b>2. Dirección</b>
+    </article>
+    <article>
+      <img class="cc-icon" src="assets/icons/cc-credit-card.svg" alt="">
+      <b>3. Pago</b>
+    </article>
+    <article>
+      <img class="cc-icon" src="assets/icons/cc-payment-approved.svg" alt="">
+      <b>4. Confirmación</b>
+    </article>
+  </section>
+
+  <!-- Layout Principal de Checkout -->
+  <section class="cc-checkout-layout grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Columna Izquierda: Dirección y Pago -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Formulario Dirección -->
+      <form class="cc-card cc-form p-6 space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Dirección de entrega</h2>
+
+        <div data-checkout-address-empty class="cc-hidden cc-alert bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-200 text-sm">
+          No tienes direcciones registradas. <a href="direcciones.html" class="underline font-bold">Registrar dirección</a>
+        </div>
+
+        <label class="cc-label">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Direcciones guardadas</span>
+          <select class="cc-select min-h-[44px] w-full" data-checkout-address>
+            <option value="">Cargando direcciones...</option>
+          </select>
+        </label>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Nombre receptor</span>
+            <input class="cc-input min-h-[44px] w-full" data-addr-name readonly>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Ciudad</span>
+            <input class="cc-input min-h-[44px] w-full" data-addr-city readonly>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Dirección</span>
+            <input class="cc-input min-h-[44px] w-full" data-addr-line readonly>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Teléfono</span>
+            <input class="cc-input min-h-[44px] w-full" data-addr-phone readonly>
+          </label>
+        </div>
+      </form>
+
+      <!-- Formulario Método de Pago Sandbox -->
+      <form id="payment-form" class="cc-card cc-form p-6 space-y-4" data-payment-form>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Método de pago sandbox</h2>
+
+        <label class="cc-label">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Método</span>
+          <select class="cc-select min-h-[44px] w-full">
+            <option>Tarjeta sandbox (Pruebas)</option>
+            <option>Billetera CommerCity sandbox</option>
+          </select>
+        </label>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Número de tarjeta</span>
+            <input type="text" name="card_number" class="cc-input min-h-[44px] w-full" autocomplete="cc-number" placeholder="Ej: 4111 1111 1111 1111" required>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Mes Vencimiento (MM)</span>
+            <input type="number" name="exp_month" class="cc-input min-h-[44px] w-full" autocomplete="cc-exp-month" placeholder="12" min="1" max="12" required>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Año Vencimiento (YYYY)</span>
+            <input type="number" name="exp_year" class="cc-input min-h-[44px] w-full" autocomplete="cc-exp-year" placeholder="2025" min="2024" max="2100" required>
+          </label>
+          <label class="cc-label">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">CVV</span>
+            <input type="text" name="cvv" class="cc-input min-h-[44px] w-full" autocomplete="cc-csc" placeholder="123" required>
+          </label>
+          <label class="cc-label md:col-span-2">
+            <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Nombre en tarjeta</span>
+            <input type="text" name="card_holder" class="cc-input min-h-[44px] w-full" autocomplete="cc-name" placeholder="Tu nombre" required>
+          </label>
+        </div>
+
+        <label class="cc-check flex items-center gap-2 pt-2">
+          <input type="checkbox" class="w-4 h-4 rounded text-[#fa8000] border-slate-300 focus:ring-[#fa8000]">
+          <span class="text-sm text-slate-700 dark:text-slate-300">Guardar método para futuras compras</span>
+        </label>
+
+        <div class="cc-alert ok text-sm p-3 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 rounded-xl border border-emerald-200 dark:border-emerald-800">
+          Pago sandbox protegido. No se ejecuta pago real en esta vista.
+        </div>
+      </form>
+    </div>
+
+    <!-- Columna Derecha: Resumen de Pedido -->
+    <aside class="space-y-6">
+
+      <!-- Card Resumen -->
+      <section class="cc-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Resumen del pedido</h2>
+
+        <div class="space-y-2 text-sm text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 pb-4" data-checkout-items>
+          <div class="flex justify-between"><span>Cargando productos...</span></div>
+        </div>
+
+        <div class="space-y-2 text-sm text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div class="flex justify-between"><span>Subtotal</span><b data-checkout-subtotal>$ 0</b></div>
+          <div class="flex justify-between"><span>Envío</span><b data-checkout-shipping>No aplicado</b></div>
+          <div class="flex justify-between text-slate-500"><span>IVA estimado</span><b>$ 0</b></div>
+        </div>
+
+        <div class="flex justify-between items-center text-lg font-bold text-slate-900 dark:text-white pt-2">
+          <span>Total</span>
+          <strong class="text-2xl text-[#fa8000] Inter" data-checkout-total>$ 0</strong>
+        </div>
+
+        <div data-checkout-empty class="cc-hidden cc-alert text-sm p-3 bg-red-50 text-red-800 rounded-xl">
+          El carrito no tiene productos válidos.
+        </div>
+
+        <button class="cc-btn primary w-full min-h-[48px] bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-base flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95" type="submit" form="payment-form" data-payment-submit>
+          <img class="cc-icon w-5 h-5 filter brightness-0 invert" src="assets/icons/cc-security-payment-lock.svg" alt="">
+          <span>Pagar ahora</span>
+        </button>
+
+        <a class="cc-btn outline w-full min-h-[44px] flex items-center justify-center border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold rounded-xl text-sm transition-all" href="carrito.html">
+          Volver al carrito
+        </a>
+
+        <div class="cc-alert cc-hidden text-xs p-3 bg-blue-50 text-blue-800 rounded-xl mt-3" data-payment-message>
+        </div>
+      </section>
+
+      <!-- Card Garantías y Seguridad -->
+      <section class="cc-card p-6 space-y-4">
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white Poppins">Seguridad del proceso</h2>
+        <div class="cc-activity-list compact space-y-3">
+          <article class="cc-activity-item flex items-center gap-3">
+            <img class="cc-icon w-5 h-5 text-[#2276ff]" src="assets/icons/cc-payment-sandbox.svg" alt="">
+            <span class="text-xs"><b>Pago sandbox:</b> Ambiente académico controlado.</span>
+          </article>
+          <article class="cc-activity-item flex items-center gap-3">
+            <img class="cc-icon w-5 h-5 text-[#2276ff]" src="assets/icons/cc-order-detail.svg" alt="">
+            <span class="text-xs"><b>Validación de pedido:</b> Confirmación previa al registro.</span>
+          </article>
+          <article class="cc-activity-item flex items-center gap-3">
+            <img class="cc-icon w-5 h-5 text-[#2276ff]" src="assets/icons/cc-shipping-package.svg" alt="">
+            <span class="text-xs"><b>Generación de envío:</b> Guía y seguimiento en tiempo real.</span>
+          </article>
+        </div>
+      </section>
+
+    </aside>
+  </section>
+</main>
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/payments.js"></script>
 </body>
