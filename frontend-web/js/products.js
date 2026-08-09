@@ -47,7 +47,7 @@ function productImage(product){
   const first=Array.isArray(product.imagenes) ? product.imagenes[0] : null;
   const fromList=first?.url || first?.ruta || first?.path || '';
   const value=direct || fromList;
-  if(!value) return 'assets/icons/cc-product-card.svg';
+  if (!value) return 'assets/icons/cc-product-card.svg';
   if(String(value).startsWith('http') || String(value).startsWith('assets/')) return value;
   if(String(value).startsWith('/uploads')) return `${UPLOADS_BASE_URL}${String(value).replace('/uploads','')}`;
   return `${UPLOADS_BASE_URL}/${String(value).replace(/^\/+/, '')}`;
@@ -368,9 +368,21 @@ export async function loadProducts(limit = 8) {
     if(document.querySelector('[data-product-filters]')){
       setInitialFilters(); bindCatalogFilters(); renderCatalog();
     } else {
-      box.innerHTML = catalogProducts.map(productCard).join('');
+      const slidesHtml = catalogProducts.map(p => `<div class="swiper-slide h-auto">${productCard(p)}</div>`).join('') + `
+        <div class="swiper-slide h-auto">
+          <a href="productos.html" class="flex flex-col items-center justify-center h-full min-h-[320px] bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-orange-50 dark:hover:bg-slate-900 group transition-all duration-300 shadow-sm p-6 text-center">
+            <div class="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform duration-300 mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
+            <b class="text-gray-800 dark:text-gray-200 Poppins text-lg group-hover:text-orange-500 transition-colors">Ver catálogo completo</b>
+            <span class="text-gray-500 dark:text-gray-400 text-sm mt-1 Inter">Explora más productos del marketplace</span>
+          </a>
+        </div>
+      `;
+      box.innerHTML = slidesHtml;
       await syncFavoriteButtons();
       await syncProductCartIcons();
+      box.dispatchEvent(new CustomEvent('cc:products-rendered', { bubbles: true }));
     }
   } catch(error) {
     usingProductFallback = true;
@@ -378,9 +390,21 @@ export async function loadProducts(limit = 8) {
     if(document.querySelector('[data-product-filters]')){
       setInitialFilters(); bindCatalogFilters(); renderCatalog();
     } else {
-      box.innerHTML = `<div class="cc-card cc-soft-warning"><h3 class="text-xl font-bold">No pudimos cargar productos reales.</h3><p>${esc(error.message)} Se muestra respaldo visual controlado.</p></div>${fallbackProducts.map(productCard).join('')}`;
+      const slidesHtml = fallbackProducts.map(p => `<div class="swiper-slide h-auto">${productCard(p)}</div>`).join('') + `
+        <div class="swiper-slide h-auto">
+          <a href="productos.html" class="flex flex-col items-center justify-center h-full min-h-[320px] bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-orange-50 dark:hover:bg-slate-900 group transition-all duration-300 shadow-sm p-6 text-center">
+            <div class="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform duration-300 mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
+            <b class="text-gray-800 dark:text-gray-200 Poppins text-lg group-hover:text-orange-500 transition-colors">Ver catálogo completo</b>
+            <span class="text-gray-500 dark:text-gray-400 text-sm mt-1 Inter">Explora más productos del marketplace</span>
+          </a>
+        </div>
+      `;
+      box.innerHTML = `<div class="cc-card cc-soft-warning mb-4" style="grid-column: 1/-1;"><h3 class="text-xl font-bold">No pudimos cargar productos reales.</h3><p>${esc(error.message)} Se muestra respaldo visual controlado.</p></div>` + slidesHtml;
       await syncFavoriteButtons();
       await syncProductCartIcons();
+      box.dispatchEvent(new CustomEvent('cc:products-rendered', { bubbles: true }));
     }
   } finally {
     bindProductActions();

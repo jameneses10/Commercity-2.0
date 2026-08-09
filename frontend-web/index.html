@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-page="home">
@@ -24,7 +26,7 @@
             <a class="cc-btn" href="productos.html" title="Comprar ahora">Comprar ahora</a>
           </div>
           <div class="cc-carousel-visual" aria-hidden="true">
-            <img class="cc-carousel-logo" src="assets/img/Logo - Commercity.png" alt="">
+            <img class="cc-carousel-logo" src="assets/img/Logo - Commercity.webp" alt="">
             <div class="cc-carousel-icon-grid">
               <span><img class="cc-icon" src="assets/icons/cc-product-card.svg" alt=""></span>
               <span><img class="cc-icon" src="assets/icons/cc-shopping-cart.svg" alt=""></span>
@@ -72,7 +74,404 @@
       </div>
     </div>
   </div>
-</section><section class="cc-section cc-market-strip"><div class="cc-container cc-grid cols-4"><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-secure-payment.svg" alt="Pago"><b>Compra segura</b><span>Validación y pagos sandbox.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-store.svg" alt="Tienda"><b>Tiendas locales</b><span>Catálogo por vendedor.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-delivery-truck.svg" alt="Envío"><b>Envíos</b><span>Estados y guías.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-chat-messages.svg" alt="Chat"><b>Mensajes</b><span>Atención directa.</span></div></div></section><section class="cc-section"><div class="cc-container"><div class="cc-section-title"><div><h2 class="text-3xl font-bold">Categorías destacadas</h2><p class="cc-muted">Explora líneas comerciales con navegación clara y sólida.</p></div><a class="cc-btn outline" href="productos.html">Ver todas</a></div><div class="cc-grid cols-4" data-categories></div></div></section><section class="cc-section"><div class="cc-container"><div class="cc-section-title"><div><h2 class="text-3xl font-bold">Productos recomendados</h2><p class="cc-muted">Productos reales desde /api/v1 cuando la API está disponible.</p></div><a class="cc-btn" href="productos.html">Catálogo completo</a></div><div class="cc-grid cols-4" data-products></div></div></section></main>
+</section></section><section class="cc-section cc-market-strip"><div class="cc-container cc-grid cols-4"><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-secure-payment.svg" alt="Pago"><b>Compra segura</b><span>Validación y pagos sandbox.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-store.svg" alt="Tienda"><b>Tiendas locales</b><span>Catálogo por vendedor.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-delivery-truck.svg" alt="Envío"><b>Envíos</b><span>Estados y guías.</span></div><div class="cc-card cc-mini-feature"><img class="cc-icon" src="assets/icons/cc-chat-messages.svg" alt="Chat"><b>Mensajes</b><span>Atención directa.</span></div></div></section>
+
+<!-- ══ SECCIÓN CATEGORÍAS REDISEÑADA ══ -->
+<section class="cc-section">
+  <div class="cc-container">
+
+    <div class="cc-section-title">
+      <div>
+        <h2 class="text-3xl font-bold">Explora por Categorías</h2>
+        <p class="cc-muted">Explora todas nuestras líneas y marcas especializadas en el marketplace.</p>
+      </div>
+      <a class="cc-btn outline" href="productos.html">Catálogo Completo</a>
+    </div>
+
+    <!-- Pestañas de categorías (Tabs) -->
+    <div class="flex gap-2 overflow-x-auto pb-4 mb-6 border-b border-gray-200 dark:border-gray-800 scrollbar-none" id="category-tabs" role="tablist">
+      <button class="cc-filter-pill active" data-tab="tech" role="tab" aria-selected="true" aria-controls="tab-tech">Tecnología y Audio</button>
+      <button class="cc-filter-pill" data-tab="fashion" role="tab" aria-selected="false" aria-controls="tab-fashion">Moda y Calzado</button>
+      <button class="cc-filter-pill" data-tab="home" role="tab" aria-selected="false" aria-controls="tab-home">Hogar y Ferretería</button>
+      <button class="cc-filter-pill" data-tab="health" role="tab" aria-selected="false" aria-controls="tab-health">Salud y Belleza</button>
+      <button class="cc-filter-pill" data-tab="sports" role="tab" aria-selected="false" aria-controls="tab-sports">Deportes y Entretenimiento</button>
+      <button class="cc-filter-pill" data-tab="others" role="tab" aria-selected="false" aria-controls="tab-others">Otros y Automotriz</button>
+    </div>
+
+    <!-- PESTAÑA 1: TECNOLOGÍA Y AUDIO -->
+    <div id="tab-tech" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4" role="tabpanel">
+
+      <a href="productos.html?categoria=Computaci%C3%B3n%20y%20Tecnolog%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Computación y Tecnología.webp" alt="Computación y Tecnología" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Computación y Tecnología</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Celulares%20y%20Telefon%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Celulares y Telefonía.webp" alt="Celulares y Telefonía" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Celulares y Telefonía</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=C%C3%A1maras%20y%20Fotograf%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Cámaras y Fotografíapng.webp" alt="Cámaras y Fotografía" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Cámaras y Fotografía</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Videojuegos%20y%20Consolas" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Videojuegos y Consolas.webp" alt="Videojuegos y Consolas" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Videojuegos y Consolas</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Software%20y%20Licencias%20Digitales" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Software y Licencias Digitales.webp" alt="Software y Licencias Digitales" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Software y Licencias</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Tecnolog%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Tecnología.webp" alt="Tecnología General" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Tecnología General</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Instrumentos%20Musicales" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Instrumentos Musicales y Audio Profesional.webp" alt="Instrumentos Musicales" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Instrumentos y Audio</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- PESTAÑA 2: MODA Y CALZADO -->
+    <div id="tab-fashion" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 hidden" role="tabpanel">
+
+      <a href="productos.html?categoria=Moda%20y%20Accesorios" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Moda y Accesorios.webp" alt="Moda y Accesorios" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Moda y Accesorios</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Ropa%20Hombre" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Ropa Hombre.webp" alt="Ropa Hombre" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Ropa de Hombre</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Ropa%20Mujer" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Ropa Mujer.webp" alt="Ropa Mujer" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Ropa de Mujer</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Ropa%20Ni%C3%B1os%20y%20Ni%C3%B1as" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Ropa Niños y Niñas.webp" alt="Ropa Infantil" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Ropa Infantil</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Calzado" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Calzado.webp" alt="Calzado" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Calzado y Zapatos</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Ropa%20y%20Calzado%20Deportivo" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Ropa y Calzado Deportivo.webp" alt="Moda Deportiva" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Ropa Deportiva</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Bolsos%20y%20Equipaje" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Bolsos y Equipaje.webp" alt="Bolsos y Equipaje" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Bolsos y Equipaje</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Joyer%C3%ADa%20y%20Relojes" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Joyería y Relojes.webp" alt="Joyería y Relojes" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Joyería y Relojes</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- PESTAÑA 3: HOGAR Y FERRETERÍA -->
+    <div id="tab-home" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 hidden" role="tabpanel">
+
+      <a href="productos.html?categoria=Hogar" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Hogar.webp" alt="Hogar" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Hogar y Menaje</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Muebles" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Muebles.webp" alt="Muebles" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Muebles y Confort</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Decoraci%C3%B3n%20e%20Iluminaci%C3%B3n" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Decoración e Iluminación.webp" alt="Decoración e Iluminación" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Decoración y Luces</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Electrodom%C3%A9sticos" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Electrodomésticos.webp" alt="Electrodomésticos" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Electrodomésticos</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Ferreter%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Ferretería.webp" alt="Ferretería" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Ferretería y Equipos</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Construcci%C3%B3n" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Construcción.webp" alt="Construcción" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Construcción y Materiales</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Jardiner%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Jardinería.webp" alt="Jardinería" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Jardinería y Exterior</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- PESTAÑA 4: SALUD Y BELLEZA -->
+    <div id="tab-health" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 hidden" role="tabpanel">
+
+      <a href="productos.html?categoria=Belleza%20y%20Cuidado%20Personal" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Belleza y Cuidado Personal.webp" alt="Belleza y Cuidado Personal" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Belleza y Cuidado</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Barber%C3%ADa%20y%20Estilizado%20Masculino" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Barbería y Estilizado Masculino.webp" alt="Estilizado Masculino" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Barbería y Cuidado Masculino</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Perfumer%C3%ADa%20y%20Aceites" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Perfumería y Aceites.webp" alt="Perfumería y Aceites" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Perfumería y Fragancias</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Farmacia%20y%20Salud%20Visual" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Farmacia y Salud Visual.webp" alt="Farmacia y Salud Visual" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Farmacia y Salud Visual</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- PESTAÑA 5: DEPORTES Y LIBROS -->
+    <div id="tab-sports" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 hidden" role="tabpanel">
+
+      <a href="productos.html?categoria=Deportes%20y%20Aire%20Libre" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Deportes y Aire Libre.webp" alt="Deportes y Aire Libre" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Deportes y Aventura</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Juguetes%20y%20Beb%C3%A9s" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Juguetes y Bebés.webp" alt="Juguetes y Bebés" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Juguetes y Bebés</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Libros%20y%20Papeler%C3%ADa" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Libros y Papelería.webp" alt="Libros y Papelería" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Libros y Papelería</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Regalos%20y%20Novedades" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Regalos y Novedades.webp" alt="Regalos y Novedades" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Regalos y Novedades</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- PESTAÑA 6: OTROS Y AUTOMOTRIZ -->
+    <div id="tab-others" class="cc-category-tab-content grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 hidden" role="tabpanel">
+
+      <a href="productos.html?categoria=Automotriz%20y%20Motos" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Automotriz y Motos.webp" alt="Automotriz y Motos" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Automotriz y Motos</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Supermercado" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Supermercado.webp" alt="Supermercado" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Supermercado y Despensa</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Negocio%20e%20Industria" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Negocio e Industria copia.webp" alt="Negocio e Industria" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Negocio e Industria</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Mascotas" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Mascotas.webp" alt="Mascotas" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Mascotas y Cuidado</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+      <a href="productos.html?categoria=Otros" class="relative block h-40 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] group">
+        <img src="./assets/Images/Categories/Categoría - Otros.webp" alt="Otras Líneas" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent flex flex-col justify-end p-4">
+          <span class="text-white font-bold text-sm leading-snug tracking-wide Poppins group-hover:text-orange-400 transition-colors duration-200">Otras Categorías</span>
+          <span class="text-gray-300 text-xs mt-1 font-medium Inter group-hover:translate-x-1 transition-transform duration-200 inline-flex items-center gap-1">Explorar →</span>
+        </div>
+      </a>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- Script para el comportamiento dinámico de las pestañas -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabButtons = document.querySelectorAll('#category-tabs button[data-tab]');
+    const tabContents = document.querySelectorAll('.cc-category-tab-content');
+
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        // Remover estado activo de todos los botones de pestaña
+        tabButtons.forEach(btn => {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-selected', 'false');
+        });
+
+        // Activar el botón de pestaña clickeado
+        button.classList.add('active');
+        button.setAttribute('aria-selected', 'true');
+
+        const activeTabId = button.getAttribute('data-tab');
+
+        // Ocultar todos los contenidos de las pestañas y mostrar solo el activo
+        tabContents.forEach(content => {
+          if (content.id === `tab-${activeTabId}`) {
+            content.classList.remove('hidden');
+          } else {
+            content.classList.add('hidden');
+          }
+        });
+      });
+    });
+  });
+</script>
+
+<section class="cc-section">
+  <div class="cc-container">
+
+    <div class="cc-section-title" style="margin-bottom: 24px;">
+      <div>
+        <h2 class="text-3xl font-bold">Productos recomendados</h2>
+        <p class="cc-muted">Productos reales desde /api/v1 cuando la API está disponible.</p>
+      </div>
+      <a class="cc-btn" href="productos.html">Catálogo completo</a>
+    </div>
+
+    <!-- Carrusel Swiper de Productos -->
+    <div class="swiper cc-products-swiper !overflow-visible relative">
+      <div class="swiper-wrapper" data-products>
+        <!-- Inyectado dinámicamente -->
+      </div>
+
+      <!-- Controles de Navegación de Swiper -->
+      <div class="swiper-button-prev !text-orange-500 !w-10 !h-10 !bg-white dark:!bg-slate-800 !rounded-full !shadow-lg !border !border-gray-100 dark:!border-slate-700 after:!text-base flex items-center justify-center -left-4 md:-left-6"></div>
+      <div class="swiper-button-next !text-orange-500 !w-10 !h-10 !bg-white dark:!bg-slate-800 !rounded-full !shadow-lg !border !border-gray-100 dark:!border-slate-700 after:!text-base flex items-center justify-center -right-4 md:-right-6"></div>
+
+      <!-- Paginación de Swiper -->
+      <div class="swiper-pagination !-bottom-8"></div>
+    </div>
+
+  </div>
+</section>
+</main>
 <script type="module" src="js/main.js"></script>
 
 </body>
