@@ -32,32 +32,45 @@ function empty(iconName,title,text,action=''){
   return `<section class="cc-card cc-empty-state"><img class="cc-icon-lg" src="assets/icons/${iconName}" alt=""><h2 class="text-2xl font-bold">${title}</h2><p class="cc-muted">${text}</p>${action}</section>`;
 }
 
-function orderStatus(o){ return safe(o.estado || o.status || 'pendiente').toLowerCase(); }
+function paymentStatus(o) { return safe(o.estado_pago || 'pendiente').toLowerCase(); }
+function generalStatus(o) { return safe(o.estado_general || 'creado').toLowerCase(); }
+function capitalize(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
+
 function orderCard(o){
   const id=o.id || o.numero || o.codigo || 'pendiente';
-  const status=orderStatus(o);
+  const payStatus=paymentStatus(o);
+  const genStatus=generalStatus(o);
   const date=o.created_at || o.fecha || o.fecha_pedido || '';
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-order-status="${status}" data-status="${status}" data-filter-text="${safe(id)} ${status}"><div><span class="cc-chip ${status==='cancelado'?'dark':status==='entregado'?'blue':'orange'}">${status}</span><h2 class="text-2xl font-bold mt-3">Pedido #${id}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Método de pago: ${safe(o.metodo_pago,'pendiente')}</p><p class="cc-muted">${safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.')}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${id}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  return `<article class="cc-card cc-order-card" data-payment-status="${payStatus}" data-general-status="${genStatus}" data-filter-text="${safe(id)} ${genStatus}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='entregado'?'blue':'orange'}">${capitalize(genStatus)}</span><h2 class="text-2xl font-bold mt-3">Pedido #${id}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${capitalize(payStatus)}</p><p class="cc-muted">${safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.')}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${id}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
 }
 
 function bindOrderFilters(){
   const group=document.querySelector('[data-order-filters]');
   const box=document.querySelector('[data-orders-list], .cc-order-board');
   if(!group || !box) return;
+
+  let state=box.querySelector('[data-dynamic-empty]');
+  if(!state){
+    state=document.createElement('div');
+    state.dataset.dynamicEmpty='true';
+    state.innerHTML=empty('cc-order-history.svg','No se encontraron resultados.','Cambia el filtro para ver otros pedidos.');
+    state.classList.add('hidden');
+    box.appendChild(state);
+  }
+
   const apply=()=>{
-    const cards=[...box.querySelectorAll('[data-order-status]')];
+    const cards=[...box.querySelectorAll('.cc-order-card')];
     if(!cards.length) return;
     const filter=group.querySelector('.active')?.dataset.orderFilter || 'all';
     let visible=0;
     cards.forEach(card=>{
-      const status=card.dataset.orderStatus;
-      const show=filter==='all' || status===filter || (filter==='pagado' && ['pagado','pago_confirmado'].includes(status));
+      const payStatus=card.dataset.paymentStatus;
+      const genStatus=card.dataset.generalStatus;
+      const show=filter==='all' || (filter==='pendiente' && payStatus==='pendiente') || (filter==='pagado' && payStatus==='pagado') || (['enviado','entregado','cancelado'].includes(filter) && genStatus===filter);
       card.classList.toggle('hidden',!show); if(show) visible++;
     });
-    let state=box.querySelector('[data-dynamic-empty]');
-    if(!visible){ if(!state){ state=document.createElement('div'); state.dataset.dynamicEmpty='true'; state.innerHTML=empty('cc-order-history.svg','No se encontraron resultados.','Cambia el filtro para ver otros pedidos.'); box.appendChild(state); } state.classList.remove('hidden'); }
-    else state?.classList.add('hidden');
+    if(!visible) state.classList.remove('hidden'); else state.classList.add('hidden');
   };
   group.querySelectorAll('[data-order-filter]').forEach(btn=>btn.addEventListener('click',()=>{ group.querySelectorAll('[data-order-filter]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); apply(); }));
   apply();
