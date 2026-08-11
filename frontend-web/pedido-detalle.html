@@ -11,9 +11,129 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-page="comprador" data-role-sidebar="comprador">
-<main class="cc-container cc-section cc-buyer-page"><div class="cc-section-title"><div><span class="cc-chip orange"><img class="cc-icon" src="assets/icons/cc-order-detail.svg" alt=""> Pedido comprador</span><h1 class="text-4xl font-bold mt-3">Detalle del pedido</h1><p class="cc-muted">Vista preparada para mostrar el detalle real cuando el endpoint esté conectado.</p></div><a class="cc-btn outline" href="mis-pedidos.html">Volver a mis pedidos</a></div><section class="cc-grid cols-2"><article class="cc-card"><h2 class="text-2xl font-bold">Resumen del pedido</h2><div class="cc-info-list"><p><b>Número:</b> #CC-1002</p><p><b>Fecha:</b> 28 de junio de 2026</p><p><b>Estado:</b> <span class="cc-chip blue">Pagado</span></p><p><b>Total:</b> <span class="cc-price">$ 89.900</span></p><p><b>Método de pago:</b> Tarjeta sandbox</p></div><div class="cc-alert mt-4">Detalle real pendiente de integración con el endpoint de pedidos del comprador.</div></article><article class="cc-card"><h2 class="text-2xl font-bold">Datos de envío</h2><div class="cc-info-list"><p><b>Dirección:</b> Calle 10 # 20-30, Bogotá</p><p><b>Estado del envío:</b> En preparación</p><p><b>Guía:</b> GUIA-PREPARADA-001</p></div></article></section><section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Productos del pedido</h2><div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody><tr><td><span class="cc-table-product"><img class="cc-icon" src="assets/icons/cc-product-card.svg" alt=""> Audífonos inalámbricos</span></td><td>1</td><td>$ 89.900</td><td>$ 89.900</td></tr></tbody></table></div></section><section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Línea de tiempo</h2><div class="cc-timeline"><span class="done">Pedido creado</span><span class="done">Pago confirmado</span><span class="active">En preparación</span><span>Enviado</span><span>Entregado</span></div></section><section class="cc-card-actions-row mt-5"><a class="cc-btn outline" href="mis-pedidos.html">Volver a mis pedidos</a><a class="cc-btn secondary" href="devoluciones.html">Solicitar devolución</a><a class="cc-btn" href="chat.html">Contactar vendedor</a></section></main>
+<main class="cc-container cc-section cc-buyer-page">
+
+  <!-- Titular -->
+  <div class="cc-section-title flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div>
+      <span class="cc-chip orange">
+        <img class="cc-icon" src="assets/icons/cc-order-detail.svg" alt=""> Pedido comprador
+      </span>
+      <h1 class="text-3xl md:text-4xl font-bold mt-3 Poppins" data-order-number>Cargando pedido...</h1>
+      <p class="cc-muted text-sm">Vista de seguimiento y desglose de artículos de tu compra.</p>
+    </div>
+    <a class="cc-btn outline min-h-[44px] px-4 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white font-bold rounded-xl text-sm transition-all" href="mis-pedidos.html">
+      Volver a mis pedidos
+    </a>
+  </div>
+
+  <div id="orderDetailContent" class="grid grid-cols-1 lg:grid-cols-3 gap-6 hidden" data-order-detail>
+
+    <!-- Columna Izquierda: Detalles del Pedido y Productos -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Card Información General -->
+      <article class="cc-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Resumen del pedido</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700 dark:text-slate-300">
+          <div><b class="text-slate-500 block text-xs">Número de pedido:</b> <span class="font-bold" data-order-id-label></span></div>
+          <div><b class="text-slate-500 block text-xs">Fecha de compra:</b> <span data-order-date></span></div>
+          <div><b class="text-slate-500 block text-xs">Estado:</b> <span data-order-payment-status></span></div>
+          <div class="md:col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+            <span class="font-medium text-slate-600 dark:text-slate-400">Total pagado:</span>
+            <strong class="text-2xl font-bold text-[#fa8000] Inter" data-order-total></strong>
+          </div>
+        </div>
+      </article>
+
+      <!-- Tabla de Productos -->
+      <article class="cc-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Productos comprados</h2>
+        <div class="cc-table-wrap overflow-x-auto">
+          <table class="cc-table w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 uppercase">
+                <th class="py-3 px-2">Producto</th>
+                <th class="py-3 px-2 text-center">Cantidad</th>
+                <th class="py-3 px-2 text-right">Precio unitario</th>
+                <th class="py-3 px-2 text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-sm" data-order-items>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Columna Derecha: Timeline de Envío Vertical -->
+    <aside class="lg:col-span-1 space-y-6">
+
+      <!-- Timeline Vertical -->
+      <article class="cc-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins">Seguimiento de envío</h2>
+
+        <!-- Timeline vertical -->
+        <div class="cc-shipment-timeline space-y-4 pl-4 border-l-2 border-slate-200 dark:border-slate-800 my-4" data-order-timeline>
+          <div class="relative pl-6">
+            <span class="absolute -left-[25px] top-0 w-4 h-4 rounded-full bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950"></span>
+            <strong class="text-sm font-bold text-slate-900 dark:text-white block">Pedido creado</strong>
+            <span class="text-xs text-slate-500" data-order-timeline-date></span>
+          </div>
+          <div class="relative pl-6">
+            <span class="absolute -left-[25px] top-0 w-4 h-4 rounded-full bg-[#fa8000] ring-4 ring-orange-100 dark:ring-orange-950 animate-pulse"></span>
+            <strong class="text-sm font-bold text-[#fa8000] block">Estado actual</strong>
+            <span class="text-xs text-slate-500" data-order-general-status></span>
+          </div>
+          <div class="relative pl-6" data-order-shipment-block>
+            <span class="absolute -left-[25px] top-0 w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-700"></span>
+            <strong class="text-sm font-bold text-slate-900 dark:text-white block">Envío</strong>
+            <span class="text-xs text-slate-500" data-order-shipment></span>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+          <p><b>Dirección:</b> <span data-order-address>No disponible</span></p>
+          <p data-order-guide-row><b>Guía de envío:</b> <span class="font-mono font-bold" data-order-guide>No disponible</span></p>
+          <p data-order-carrier-row><b>Transportadora:</b> <span data-order-carrier>No disponible</span></p>
+        </div>
+      </article>
+
+      <!-- Botones de Acción -->
+      <article class="cc-card p-6 space-y-3">
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white Poppins mb-2">Acciones del pedido</h2>
+        <a class="cc-btn primary w-full min-h-[44px] bg-[#fa8000] hover:bg-[#e07200] text-white font-bold rounded-xl text-sm flex items-center justify-center transition-all" href="chat.html">
+          Contactar vendedor
+        </a>
+        <a class="cc-btn secondary w-full min-h-[44px] bg-[#2276ff] hover:bg-[#1a5ecc] text-white font-bold rounded-xl text-sm flex items-center justify-center transition-all" href="devoluciones.html">
+          Solicitar devolución
+        </a>
+        <a class="cc-btn outline w-full min-h-[44px] flex items-center justify-center border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-semibold rounded-xl text-sm transition-all" href="mis-pedidos.html">
+          Volver a mis pedidos
+        </a>
+      </article>
+
+    </aside>
+
+  </div>
+
+  <div id="orderDetailLoading" class="cc-card cc-empty-state" data-order-loading>
+    <img class="cc-icon-lg" src="assets/icons/cc-order-history.svg" alt="">
+    <h2 class="text-2xl font-bold mt-4 mb-2">Cargando pedido...</h2>
+  </div>
+
+  <div id="orderDetailError" class="cc-card cc-empty-state hidden" data-order-error>
+    <img class="cc-icon-lg" src="assets/icons/cc-order-history.svg" alt="">
+    <h2 class="text-2xl font-bold mt-4 mb-2" data-error-title>Pedido no encontrado.</h2>
+    <p class="cc-muted" data-error-message>Verifica el número e intenta nuevamente.</p>
+    <a class="cc-btn mt-4" href="mis-pedidos.html">Volver a mis pedidos</a>
+  </div>
+</main>
+
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/role-sidebar.js"></script>
 <script type="module" src="js/phase617.js"></script>
+<script type="module" src="js/order-detail.js"></script>
 </body>
 </html>
