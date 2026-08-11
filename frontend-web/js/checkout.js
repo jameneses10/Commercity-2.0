@@ -1,5 +1,5 @@
 import { api, currentUser, token } from './api.js';
-import { escapeHtml, formatCurrency } from './ui.js';
+import { escapeHtml, money } from './ui.js';
 
 let context = {
     direccion_id: null,
@@ -22,7 +22,7 @@ let addressesData = [];
 export async function revalidateCheckout() {
     try {
         const cartReq = await api.get('/cart');
-        const cartItems = cartReq.data || [];
+        const cartItems = cartReq.data?.items || [];
         if(!cartItems.length) {
             context.valid = false;
             return context;
@@ -101,7 +101,7 @@ function updateAddressFields(id) {
 async function loadCart() {
     try {
         const cartReq = await api.get('/cart');
-        const cartItems = cartReq.data || [];
+        const cartItems = cartReq.data?.items || [];
 
         if(!cartItems.length) {
             renderEmptyCart();
@@ -120,8 +120,8 @@ async function loadCart() {
         }
 
         renderItems(context.valid_items);
-        subtotalEl.textContent = formatCurrency(context.total);
-        totalEl.textContent = formatCurrency(context.total);
+        subtotalEl.textContent = money(context.total);
+        totalEl.textContent = money(context.total);
 
         updateSubmitState();
     } catch(err) {
@@ -134,7 +134,7 @@ function renderItems(items) {
     for(const item of items) {
         html += `<div class="flex justify-between">
             <span>${escapeHtml(item.nombre)} x${escapeHtml(String(item.cantidad))}</span>
-            <b>${escapeHtml(formatCurrency(item.subtotal))}</b>
+            <b>${escapeHtml(money(item.subtotal))}</b>
         </div>`;
     }
     itemsContainer.innerHTML = html;
