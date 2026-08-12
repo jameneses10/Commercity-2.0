@@ -6,6 +6,14 @@ const { hashPassword }=require('../utils/password');
 function err(m,s){const e=new Error(m); e.statusCode=s; return e;}
 function sha(v){return crypto.createHash('sha256').update(String(v)).digest('hex');}
 function code(){return String(crypto.randomInt(100000,999999));}
+function maskEmail(email) {
+  if (!email) return '';
+  const parts = String(email).split('@');
+  if (parts.length !== 2) return email;
+  const local = parts[0];
+  const maskedLocal = local.length > 1 ? local[0] + '*'.repeat(local.length - 1) : local;
+  return `${maskedLocal}@${parts[1]}`;
+}
 async function forgotPassword({correo}){
  const normalized=String(correo||'').toLowerCase().trim();
  const generic={message:'Si el correo existe y está activo, se generó un código temporal para restablecer la contraseña.'};
@@ -14,7 +22,9 @@ async function forgotPassword({correo}){
  const plainToken=crypto.randomBytes(32).toString('hex'); const plainCode=code();
  const expiresAt=new Date(Date.now()+15*60*1000);
  await resetModel.create({usuario_id:user.id,token_hash:sha(plainToken),codigo_hash:sha(plainCode),expires_at:expiresAt});
- if(env.nodeEnv==='development') return {...generic, debug_reset_code:plainCode};
+ if(env.nodeEnv==='development') {
+   console.log(`\n[DEV PASSWORD RESET]\ncorreo = ${maskEmail(normalized)}\ncodigo = ${plainCode}\nexpira = 15 minutos\n`);
+ }
  return generic;
 }
 async function resetPassword({correo,codigo,token,password,confirmPassword}){
