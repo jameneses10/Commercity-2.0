@@ -51,20 +51,6 @@ function initHelpSearch(){
   });
 }
 
-function initResetPassword(){
-  const form=document.querySelector('#resetPasswordForm');
-  if(!form) return;
-  form.addEventListener('submit', event=>{
-    event.preventDefault();
-    const data=Object.fromEntries(new FormData(form));
-    if(String(data.password||'').length<8){ showMessage('#resetMsg','La contraseña debe tener mínimo 8 caracteres.'); return; }
-    if(data.password!==data.confirmPassword){ showMessage('#resetMsg','Las contraseñas no coinciden.'); return; }
-    showMessage('#resetMsg','Funcionalidad en preparación. La validación visual fue correcta.',true);
-    form.reset();
-  });
-}
-
 initFilterPills();
 initCategorySearch();
 initHelpSearch();
-initResetPassword();
