@@ -41,6 +41,8 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
+app.set('trust proxy', 'loopback');
+
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
