@@ -3,11 +3,11 @@ const authController = require('../controllers/auth.controller');
 const authRequired = require('../middlewares/authRequired');
 const requireRole = require('../middlewares/requireRole');
 const { registerValidator, loginValidator, forgotPasswordValidator, resetPasswordValidator, changePasswordValidator, reactivateValidator } = require('../validators/auth.validators');
-const { forgotPasswordLimiter, resetPasswordLimiter } = require('../middlewares/rateLimiter');
+const { loginLimiter, forgotPasswordLimiter, resetPasswordLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 router.post('/register', registerValidator, authController.register);
-router.post('/login', loginValidator, authController.login);
+router.post('/login', loginLimiter, loginValidator, authController.login);
 router.post('/reactivate', reactivateValidator, authController.reactivate);
 router.post('/forgot-password', forgotPasswordLimiter, forgotPasswordValidator, authController.forgot);
 router.post('/reset-password', resetPasswordLimiter, resetPasswordValidator, authController.reset);

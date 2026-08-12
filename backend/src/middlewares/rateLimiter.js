@@ -29,7 +29,18 @@ const resetPasswordLimiter = rateLimit({
   handler
 });
 
+const loginLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: LIMIT,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  validate: true,
+  skipSuccessfulRequests: true,
+  handler
+});
+
 module.exports = {
+  loginLimiter,
   forgotPasswordLimiter,
   resetPasswordLimiter
 };
