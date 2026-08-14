@@ -1,5 +1,5 @@
 import { api, currentUser, token, updateStoredUser } from './api.js';
-import { money, showMessage, syncHeaderNotificationIcon } from './ui.js';
+import { money, showMessage, syncHeaderNotificationIcon, escapeHtml as escHtml } from './ui.js';
 
 function path(){ return location.pathname.split('/').pop() || 'index.html'; }
 function icon(name){ return `<img class="cc-icon" src="assets/icons/${name}" alt="">`; }
@@ -23,7 +23,7 @@ async function buyerSession(){
     return user;
   }catch(error){
     const main=document.querySelector('main');
-    if(main) main.insertAdjacentHTML('afterbegin',`<section class="cc-card cc-soft-warning mb-5"><b>No pudimos validar la sesión.</b><p>${error.message}</p><a class="cc-btn mt-3" href="login.html">Volver a iniciar sesión</a></section>`);
+    if(main) main.insertAdjacentHTML('afterbegin',`<section class="cc-card cc-soft-warning mb-5"><b>No pudimos validar la sesión.</b><p>${escHtml(safe(error?.message, 'Error desconocido'))}</p><a class="cc-btn mt-3" href="login.html">Volver a iniciar sesión</a></section>`);
     return null;
   }
 }
@@ -42,7 +42,7 @@ function orderCard(o){
   const genStatus=generalStatus(o);
   const date=o.created_at || o.fecha || o.fecha_pedido || '';
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-payment-status="${payStatus}" data-general-status="${genStatus}" data-filter-text="${safe(id)} ${genStatus}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='entregado'?'blue':'orange'}">${capitalize(genStatus)}</span><h2 class="text-2xl font-bold mt-3">Pedido #${id}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${capitalize(payStatus)}</p><p class="cc-muted">${safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.')}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${id}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='entregado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
 }
 
 function bindOrderFilters(){
@@ -85,14 +85,14 @@ async function initOrders(){
     const orders=data?.data?.orders || data?.orders || [];
     box.innerHTML=orders.length ? orders.map(orderCard).join('') : empty('cc-order-history.svg','Aún no tienes pedidos.','Cuando compres en CommerCity, tus pedidos reales aparecerán aquí.','<a class="cc-btn" href="productos.html">Explorar productos</a>');
   }catch(error){
-    box.innerHTML=empty('cc-order-history.svg','No pudimos cargar pedidos.','La API respondió: '+error.message,'<a class="cc-btn" href="productos.html">Seguir comprando</a>');
+    box.innerHTML=empty('cc-order-history.svg','No pudimos cargar pedidos.','La API respondió: '+escHtml(safe(error?.message, 'Error desconocido')),'<a class="cc-btn" href="productos.html">Seguir comprando</a>');
   }
   bindOrderFilters();
 }
 
 function addressCard(a){
   const id=a.id || a.direccion_id;
-  return `<article class="cc-card cc-address-card" data-address-id="${id}"><span class="cc-chip ${a.es_principal?'orange':'blue'}">${a.es_principal?'Principal':'Alterna'}</span><h2 class="text-2xl font-bold mt-3">${safe(a.nombre_destinatario || a.alias || 'Dirección')}</h2><p class="cc-muted">${safe(a.departamento)}, ${safe(a.ciudad)} · ${safe(a.direccion)}</p><p><b>Teléfono:</b> ${safe(a.telefono)}</p><p class="cc-muted">${safe(a.barrio || a.codigo_postal || '')} ${safe(a.referencia || '')}</p><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-edit-address="${id}">Editar</button><button class="cc-btn secondary" type="button" data-delete-address="${id}">Eliminar</button><button class="cc-btn" type="button" data-main-address="${id}">Marcar como principal</button></div></article>`;
+  return `<article class="cc-card cc-address-card" data-address-id="${escHtml(safe(id))}"><span class="cc-chip ${a.es_principal?'orange':'blue'}">${a.es_principal?'Principal':'Alterna'}</span><h2 class="text-2xl font-bold mt-3">${escHtml(safe(a.nombre_destinatario || a.alias || 'Dirección'))}</h2><p class="cc-muted">${escHtml(safe(a.departamento))}, ${escHtml(safe(a.ciudad))} · ${escHtml(safe(a.direccion))}</p><p><b>Teléfono:</b> ${escHtml(safe(a.telefono))}</p><p class="cc-muted">${escHtml(safe(a.barrio || a.codigo_postal || ''))} ${escHtml(safe(a.referencia || ''))}</p><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-edit-address="${escHtml(safe(id))}">Editar</button><button class="cc-btn secondary" type="button" data-delete-address="${escHtml(safe(id))}">Eliminar</button><button class="cc-btn" type="button" data-main-address="${escHtml(safe(id))}">Marcar como principal</button></div></article>`;
 }
 
 async function loadAddresses(){
@@ -102,7 +102,7 @@ async function loadAddresses(){
     const data=await api.get('/addresses');
     const addresses=data?.data?.addresses || data?.addresses || data?.data || [];
     box.innerHTML=Array.isArray(addresses) && addresses.length ? addresses.map(addressCard).join('') : empty('cc-address-location.svg','No tienes direcciones guardadas.','Crea tu primera dirección para usarla en pedidos reales.');
-  }catch(error){ box.innerHTML=empty('cc-address-location.svg','No pudimos cargar direcciones.',error.message); }
+  }catch(error){ box.innerHTML=empty('cc-address-location.svg','No pudimos cargar direcciones.',escHtml(safe(error?.message, 'Error desconocido'))); }
 }
 
 async function initAddresses(){
@@ -129,7 +129,7 @@ function favoriteProduct(f){ return f.product || f.producto || f; }
 function favoriteId(f){ const p=favoriteProduct(f); return f.producto_id || f.product_id || p.id || f.id; }
 function favoriteCard(f, local=false){
   const p=favoriteProduct(f); const id=favoriteId(f);
-  return `<article class="cc-card cc-favorite-card" data-favorite-id="${id}"><img class="cc-icon-lg" src="assets/icons/cc-product-card.svg" alt=""><h2 class="text-2xl font-bold">${safe(p.nombre,'Producto favorito')}</h2><p class="cc-muted">${safe(p.tienda_nombre,'Tienda CommerCity')}</p><b class="cc-price">${money(p.precio_final || p.precio || 0)}</b><div class="cc-card-actions"><a class="cc-btn outline" href="producto-detalle.html?id=${id}">Ver producto</a><button class="cc-btn" type="button" data-cart="${id}">${icon('cc-shopping-cart.svg')}Agregar</button><button class="cc-btn secondary" type="button" data-remove-favorite="${id}" data-local-favorite="${local?'true':'false'}">Quitar</button></div></article>`;
+  return `<article class="cc-card cc-favorite-card" data-favorite-id="${escHtml(safe(id))}"><img class="cc-icon-lg" src="assets/icons/cc-product-card.svg" alt=""><h2 class="text-2xl font-bold">${escHtml(safe(p.nombre,'Producto favorito'))}</h2><p class="cc-muted">${escHtml(safe(p.tienda_nombre,'Tienda CommerCity'))}</p><b class="cc-price">${money(p.precio_final || p.precio || 0)}</b><div class="cc-card-actions"><a class="cc-btn outline" href="producto-detalle.html?id=${encodeURIComponent(safe(id))}">Ver producto</a><button class="cc-btn" type="button" data-cart="${escHtml(safe(id))}">${icon('cc-shopping-cart.svg')}Agregar</button><button class="cc-btn secondary" type="button" data-remove-favorite="${escHtml(safe(id))}" data-local-favorite="${local?'true':'false'}">Quitar</button></div></article>`;
 }
 async function loadFavorites(){
   const box=document.querySelector('[data-favorites-list]'); if(!box) return;
@@ -140,7 +140,7 @@ async function loadFavorites(){
     box.innerHTML=favs.length ? favs.map(f=>favoriteCard(f)).join('') : empty('cc-favorites-wishlist.svg','No tienes favoritos reales.','Guarda productos desde el catálogo para verlos aquí.','<a class="cc-btn" href="productos.html">Explorar catálogo</a>');
   }catch(error){
     const local=localFavorites();
-    box.innerHTML=local.length ? local.map(f=>favoriteCard(f,true)).join('') : empty('cc-favorites-wishlist.svg','Favoritos no disponibles.',`${error.message}. Se usará respaldo local cuando agregues productos.`,'<a class="cc-btn" href="productos.html">Explorar catálogo</a>');
+    box.innerHTML=local.length ? local.map(f=>favoriteCard(f,true)).join('') : empty('cc-favorites-wishlist.svg','Favoritos no disponibles.',`${escHtml(safe(error?.message, 'Error desconocido'))}. Se usará respaldo local cuando agregues productos.`,'<a class="cc-btn" href="productos.html">Explorar catálogo</a>');
   }
 }
 async function initFavorites(){
@@ -159,7 +159,7 @@ function notificationType(n){ return safe(n.tipo || n.type || 'system').toLowerC
 function notificationRead(n){ return Boolean(n.leida || n.read_at || n.leido || n.estado==='leida'); }
 function notificationCard(n){
   const read=notificationRead(n); const type=notificationType(n);
-  return `<article class="cc-card cc-notification-card ${read?'':'unread'}" data-kind="${type}" data-status="${read?'read':'unread'}" data-notification-id="${n.id}"><span class="cc-status-dot ${read?'blue':'green'}"></span><div><b>${safe(n.titulo,'Notificación')}</b><p class="cc-muted">${safe(n.mensaje,'Mensaje de CommerCity')}</p><small>${n.created_at ? new Date(n.created_at).toLocaleString('es-CO') : 'Fecha no disponible'} · ${read?'Leída':'No leída'}</small><div class="cc-card-actions-row mt-3"><button class="cc-btn outline" data-read-notification="${n.id}" type="button">Marcar leída</button></div></div></article>`;
+  return `<article class="cc-card cc-notification-card ${read?'':'unread'}" data-kind="${escHtml(type)}" data-status="${read?'read':'unread'}" data-notification-id="${escHtml(safe(n.id))}"><span class="cc-status-dot ${read?'blue':'green'}"></span><div><b>${escHtml(safe(n.titulo,'Notificación'))}</b><p class="cc-muted">${escHtml(safe(n.mensaje,'Mensaje de CommerCity'))}</p><small>${n.created_at ? new Date(n.created_at).toLocaleString('es-CO') : 'Fecha no disponible'} · ${read?'Leída':'No leída'}</small><div class="cc-card-actions-row mt-3"><button class="cc-btn outline" data-read-notification="${escHtml(safe(n.id))}" type="button">Marcar leída</button></div></div></article>`;
 }
 function bindNotificationFilters(){
   const group=document.querySelector('[data-filter-group="notifications"]'); const box=document.querySelector('[data-notifications-list]'); if(!group||!box) return;
@@ -171,7 +171,7 @@ async function loadNotifications(){
   const box=document.querySelector('[data-notifications-list]'); if(!box) return;
   box.innerHTML='<section class="cc-card cc-loading-card">Cargando notificaciones reales...</section>';
   try{ const data=await api.get('/notifications'); const list=data?.data?.notifications || data?.notifications || []; box.innerHTML=list.length ? list.map(notificationCard).join('') : empty('cc-notifications.svg','No tienes notificaciones.','Los avisos reales de pedidos, pagos y sistema aparecerán aquí.'); syncHeaderNotificationIcon(list.filter(n=>!notificationRead(n)).length); }
-  catch(error){ box.innerHTML=empty('cc-notifications.svg','No pudimos cargar notificaciones.',error.message); syncHeaderNotificationIcon(0); }
+  catch(error){ box.innerHTML=empty('cc-notifications.svg','No pudimos cargar notificaciones.',escHtml(safe(error?.message, 'Error desconocido'))); syncHeaderNotificationIcon(0); }
   bindNotificationFilters();
 }
 async function initNotifications(){
