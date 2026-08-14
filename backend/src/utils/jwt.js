@@ -7,6 +7,7 @@ function signToken(user) {
       id: user.id,
       correo: user.correo,
       rol: user.rol,
+      token_version: Number(user.token_version ?? 0)
     },
     env.jwt.secret,
     { expiresIn: env.jwt.expiresIn }

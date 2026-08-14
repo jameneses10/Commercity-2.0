@@ -63,7 +63,7 @@ async function loginUser({ correo, password }) {
   await updateLastLogin(user.id);
   const fresh = await findUserById(user.id);
   const safeUser = sanitizeUser(fresh || user);
-  const token = signToken(safeUser);
+  const token = signToken(fresh || user);
   return { token, user: safeUser };
 }
 

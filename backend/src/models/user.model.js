@@ -31,7 +31,7 @@ function sanitizeUser(user) {
 }
 
 const USER_SELECT = `SELECT u.id, u.rol_id, u.nombre, u.correo, u.password_hash, u.telefono, u.fecha_nacimiento,
-            u.estado, u.acepta_terminos, u.terminos_version, u.terminos_aceptados_at,
+            u.estado, u.token_version, u.acepta_terminos, u.terminos_version, u.terminos_aceptados_at,
             u.deleted_at, u.ultimo_login_at, u.modo_oscuro, u.preferencias_notificaciones,
             u.cuenta_desactivada, u.fecha_desactivacion, u.solicitud_eliminacion_estado,
             u.solicitud_eliminacion_fecha, u.solicitud_eliminacion_respuesta_admin, u.anonimizado,
