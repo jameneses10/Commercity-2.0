@@ -1,23 +1,33 @@
 function normalizeOrigin(value) {
-  return String(value || '').trim().replace(/\/$/, '');
+  try {
+    return new URL(value).origin;
+  } catch {
+    return '';
+  }
 }
 
 function browserApiOrigin() {
-  const explicit = normalizeOrigin(window.COMMERCITY_API_ORIGIN || localStorage.getItem('cc_api_origin'));
-  if (explicit) return explicit;
-
   const { protocol, hostname, port, origin } = window.location;
-  const localHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0', '']);
+  const localHosts = new Set(['localhost', '127.0.0.1']);
 
+  let devFallback = origin;
   if (localHosts.has(hostname)) {
-    return port === '8080' ? 'http://localhost:3000' : origin;
+    devFallback = port === '8080' ? 'http://localhost:3000' : origin;
+  } else if (port === '8080') {
+    devFallback = `${protocol}//${hostname}`;
   }
 
-  if (port === '8080') {
-    return `${protocol}//${hostname}`;
+  const explicit = normalizeOrigin(window.COMMERCITY_API_ORIGIN);
+  if (explicit) {
+    if (explicit === origin) {
+      return explicit;
+    }
+    if (localHosts.has(hostname) && (explicit === 'http://localhost:3000' || explicit === 'http://127.0.0.1:3000')) {
+      return explicit;
+    }
   }
 
-  return origin;
+  return devFallback;
 }
 
 export const API_ORIGIN = browserApiOrigin();

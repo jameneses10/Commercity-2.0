@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, API_ORIGIN } from './config.js';
 
 export function token(){
   return localStorage.getItem('cc_token') || '';
@@ -46,7 +46,15 @@ function normalizeError(data, status){
 }
 
 async function request(path, options={}){
-  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+  const urlObj = path.startsWith('http') ? new URL(path) : new URL(`${API_BASE_URL}${path}`, window.location.origin);
+  const destinationOrigin = urlObj.origin;
+  const expectedOrigin = new URL(API_ORIGIN).origin;
+
+  if (destinationOrigin !== expectedOrigin) {
+    throw new Error('Destino de API no autorizado.');
+  }
+
+  const url = urlObj.toString();
   const body=options.body;
   const headers = {
     Accept: 'application/json',
