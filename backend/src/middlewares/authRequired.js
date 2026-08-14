@@ -30,10 +30,18 @@ async function authRequired(req, res, next) {
       return res.status(401).json(errorResponse('Sesión inválida o expirada.'));
     }
 
+    if (dbUser.estado !== 'activo' || dbUser.deleted_at) {
+      return res.status(401).json(errorResponse('Sesión inválida o expirada.'));
+    }
+
+    if (!dbUser.rol) {
+      return res.status(401).json(errorResponse('Sesión inválida o expirada.'));
+    }
+
     req.user = {
-      id: payload.id,
-      correo: payload.correo,
-      rol: payload.rol,
+      id: dbUser.id,
+      correo: dbUser.correo,
+      rol: dbUser.rol,
     };
     return next();
   } catch (error) {
