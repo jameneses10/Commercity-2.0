@@ -1,5 +1,5 @@
 const { pool } = require('../config/database');
-const { findUserById, findUserByEmail, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, sanitizeUser } = require('../models/user.model');
+const { findUserById, findUserByEmail, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, sanitizeUser, incrementTokenVersion } = require('../models/user.model');
 const { findRoleByName } = require('../models/role.model');
 const profileModel = require('../models/profile.model');
 const { pauseStoreBySellerId } = require('../models/store.model');
@@ -53,7 +53,27 @@ async function changePassword(userId, { currentPassword, newPassword, confirmPas
   const user = await findUserById(userId); if (!user) throw err('Usuario no encontrado.', 404);
   const full = await findUserByEmail(user.correo); const ok = await comparePassword(currentPassword, full.password_hash);
   if (!ok) throw err('La contraseña actual no es correcta.', 400);
-  const hash = await hashPassword(newPassword); await updatePassword(userId, hash);
+  const hash = await hashPassword(newPassword);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const passwordAffected = await updatePassword(userId, hash, conn);
+    if (passwordAffected !== 1) {
+      throw err('Error al actualizar la contraseña.', 500);
+    }
+    const versionAffected = await incrementTokenVersion(userId, conn);
+    if (versionAffected !== 1) {
+      throw err('Error al actualizar la contraseña.', 500);
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+
   await notificationService.create(null, userId, { tipo:'password_cambiada', titulo:'Contraseña actualizada', mensaje:'Tu contraseña fue cambiada correctamente.', entidad_tipo:'usuario', entidad_id:userId });
   await logService.log(null, { usuario_id:userId, accion:'password_cambiada', entidad:'usuario', entidad_id:userId, ip:meta.ip });
   return { changed:true };
