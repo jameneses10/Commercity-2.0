@@ -94,9 +94,13 @@ async function reactivateAccount(id, conn = pool) {
   );
   return result.affectedRows;
 }
+async function updateUserStatusConditional(id, estado, expectedEstado, conn = pool) {
+  const [result] = await conn.query('UPDATE usuarios SET estado=? WHERE id=? AND estado=?', [estado, id, expectedEstado]);
+  return result.affectedRows;
+}
 async function incrementTokenVersion(id, conn = pool) {
   const [result] = await conn.query('UPDATE usuarios SET token_version = token_version + 1 WHERE id = ?', [id]);
   return result.affectedRows;
 }
 
-module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, incrementTokenVersion };
+module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, updateUserStatusConditional, incrementTokenVersion };
