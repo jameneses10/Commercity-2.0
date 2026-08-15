@@ -4,7 +4,8 @@ const {
   incrementTokenVersion
 } = require('../models/user.model');
 
-const ALLOWED_STATUSES = new Set(['activo', 'inactivo', 'baneado']);
+const ALLOWED_TARGET_STATUSES = new Set(['activo', 'inactivo', 'baneado']);
+const SUPPORTED_SOURCE_STATUSES = new Set(['activo', 'inactivo', 'baneado', 'bloqueado']);
 
 function transitionError(code) {
   const error = new Error(code);
@@ -16,7 +17,7 @@ async function applyUserStatusTransition({ conn, userId, requestedEstado }) {
   if (!conn || typeof conn.query !== 'function') {
     throw transitionError('USER_STATUS_CONNECTION_REQUIRED');
   }
-  if (!ALLOWED_STATUSES.has(requestedEstado)) {
+  if (!ALLOWED_TARGET_STATUSES.has(requestedEstado)) {
     throw transitionError('USER_STATUS_INVALID_TARGET');
   }
 
@@ -24,7 +25,7 @@ async function applyUserStatusTransition({ conn, userId, requestedEstado }) {
   if (!user) {
     throw transitionError('USER_STATUS_TARGET_NOT_FOUND');
   }
-  if (!ALLOWED_STATUSES.has(user.estado)) {
+  if (!SUPPORTED_SOURCE_STATUSES.has(user.estado)) {
     throw transitionError('USER_STATUS_UNSUPPORTED_CURRENT');
   }
 
