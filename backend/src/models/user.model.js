@@ -91,5 +91,9 @@ async function reactivateAccount(id, conn = pool) {
   );
   return result.affectedRows;
 }
+async function incrementTokenVersion(id, conn = pool) {
+  const [result] = await conn.query('UPDATE usuarios SET token_version = token_version + 1 WHERE id = ?', [id]);
+  return result.affectedRows;
+}
 
-module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount };
+module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, incrementTokenVersion };
