@@ -62,7 +62,10 @@ async function createUser({ rolId, nombre, correo, passwordHash, telefono = null
 }
 
 async function updateLastLogin(id){ await pool.query('UPDATE usuarios SET ultimo_login_at=NOW() WHERE id=?',[id]); }
-async function updatePassword(id,passwordHash,conn=pool){ await conn.query('UPDATE usuarios SET password_hash=? WHERE id=?',[passwordHash,id]); }
+async function updatePassword(id, passwordHash, conn = pool) {
+  const [result] = await conn.query('UPDATE usuarios SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+  return result.affectedRows;
+}
 async function updateBasic(id,{nombre,telefono}){ await pool.query('UPDATE usuarios SET nombre=COALESCE(?,nombre), telefono=? WHERE id=?',[nombre||null, telefono ?? null, id]); return findUserById(id); }
 async function deactivate(id){ await pool.query("UPDATE usuarios SET estado='inactivo', deleted_at=NOW() WHERE id=? AND estado='activo'",[id]); return findUserById(id); }
 async function upgradeToSeller(id, rolId, fechaNacimiento = null) {
