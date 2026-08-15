@@ -106,7 +106,10 @@ async function deactivateAccount(userId, meta = {}) {
       throw err(`No puede desactivar la cuenta mientras tenga operaciones pendientes: ${parts.join(', ')}.`, 409);
     }
 
-    await conn.query("UPDATE usuarios SET estado='inactivo', cuenta_desactivada=TRUE, fecha_desactivacion=NOW(), deleted_at=NOW() WHERE id=? AND estado='activo'", [userId]);
+    const [deactResult] = await conn.query("UPDATE usuarios SET estado='inactivo', cuenta_desactivada=TRUE, fecha_desactivacion=NOW(), deleted_at=NOW() WHERE id=? AND estado='activo'", [userId]);
+    if (deactResult.affectedRows !== 1) {
+      throw err('La cuenta ya no se encuentra activa.', 409);
+    }
 
     if (user.rol === 'vendedor') {
       const pausedRows = await pauseStoreBySellerId(userId, conn);
@@ -117,6 +120,12 @@ async function deactivateAccount(userId, meta = {}) {
 
     await notificationService.create(conn, userId, { tipo:'cuenta_desactivada', titulo:'Cuenta desactivada', mensaje:'Tu cuenta fue desactivada temporalmente.', entidad_tipo:'usuario', entidad_id:userId });
     await logService.log(conn, { usuario_id:userId, accion:'cuenta_desactivada', entidad:'usuario', entidad_id:userId, ip:meta.ip });
+
+    const versionAffected = await incrementTokenVersion(userId, conn);
+    if (versionAffected !== 1) {
+      throw err('Error al desactivar la cuenta.', 500);
+    }
+
     await conn.commit();
     return { user: sanitizeUser(await findUserById(userId, conn)) };
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
