@@ -1,7 +1,8 @@
 const crypto=require('crypto');
 const env=require('../config/env');
+const { pool } = require('../config/database');
 const resetModel=require('../models/passwordReset.model');
-const { findUserByEmail, updatePassword }=require('../models/user.model');
+const { findUserByEmail, updatePassword, incrementTokenVersion }=require('../models/user.model');
 const { hashPassword }=require('../utils/password');
 function err(m,s){const e=new Error(m); e.statusCode=s; return e;}
 function sha(v){return crypto.createHash('sha256').update(String(v)).digest('hex');}
@@ -36,7 +37,29 @@ async function resetPassword({correo,codigo,token,password,confirmPassword}){
  const found=candidates.find(r => r.codigo_hash===incoming || r.token_hash===incoming);
  if(!found) throw err('Código o token inválido o expirado.',400);
  const hash=await hashPassword(password);
- await updatePassword(user.id,hash); await resetModel.markUsed(found.id);
+
+ const conn = await pool.getConnection();
+ try {
+   await conn.beginTransaction();
+   const claimAffected = await resetModel.markUsed(found.id, conn);
+   if (claimAffected !== 1) {
+     throw err('Código o token inválido o expirado.', 400);
+   }
+   const passwordAffected = await updatePassword(user.id, hash, conn);
+   if (passwordAffected !== 1) {
+     throw err('Error al restablecer la contraseña.', 500);
+   }
+   const versionAffected = await incrementTokenVersion(user.id, conn);
+   if (versionAffected !== 1) {
+     throw err('Error al restablecer la contraseña.', 500);
+   }
+   await conn.commit();
+ } catch (e) {
+   await conn.rollback();
+   throw e;
+ } finally {
+   conn.release();
+ }
  return {changed:true};
 }
 module.exports={forgotPassword,resetPassword};
