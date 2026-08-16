@@ -1,5 +1,5 @@
 const { pool } = require('../config/database');
-const { findUserById, findUserByEmail, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, sanitizeUser, incrementTokenVersion } = require('../models/user.model');
+const { findUserById, findUserByEmail, updatePassword, updateBasic, upgradeToSeller, reactivateAccount, sanitizeUser, incrementTokenVersion } = require('../models/user.model');
 const { findRoleByName } = require('../models/role.model');
 const profileModel = require('../models/profile.model');
 const { pauseStoreBySellerId } = require('../models/store.model');

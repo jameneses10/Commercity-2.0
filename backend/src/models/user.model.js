@@ -67,7 +67,6 @@ async function updatePassword(id, passwordHash, conn = pool) {
   return result.affectedRows;
 }
 async function updateBasic(id,{nombre,telefono}){ await pool.query('UPDATE usuarios SET nombre=COALESCE(?,nombre), telefono=? WHERE id=?',[nombre||null, telefono ?? null, id]); return findUserById(id); }
-async function deactivate(id){ await pool.query("UPDATE usuarios SET estado='inactivo', deleted_at=NOW() WHERE id=? AND estado='activo'",[id]); return findUserById(id); }
 async function upgradeToSeller(id, rolId, fechaNacimiento = null) {
   await pool.query(
     `UPDATE usuarios
@@ -104,4 +103,4 @@ async function incrementTokenVersion(id, conn = pool) {
   return result.affectedRows;
 }
 
-module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, deactivate, upgradeToSeller, reactivateAccount, updateUserStatusConditional, incrementTokenVersion };
+module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, upgradeToSeller, reactivateAccount, updateUserStatusConditional, incrementTokenVersion };
