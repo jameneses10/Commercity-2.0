@@ -1,10 +1,18 @@
 const { pool } = require('../config/database');
 const model = require('../models/adminStats.model');
-const { incrementTokenVersion } = require('../models/user.model');
+const { applyUserStatusTransition } = require('./userStatusTransition.service');
 const notification = require('./notification.service');
 const logService = require('./log.service');
 
 function err(m, s) { const e = new Error(m); e.statusCode = s; return e; }
+
+function mapUserStatusTransitionError(error) {
+  if (error.code === 'USER_STATUS_INVALID_TARGET') return err('Estado no permitido.', 400);
+  if (error.code === 'USER_STATUS_TARGET_NOT_FOUND') return err('Usuario no encontrado.', 404);
+  if (error.code === 'USER_STATUS_CONFLICT') return err('El estado del usuario cambió. Intente nuevamente.', 409);
+  if (error.code === 'USER_TOKEN_VERSION_UPDATE_FAILED') return err('Error al actualizar el estado del usuario.', 500);
+  return error;
+}
 
 async function dashboardStats() { return model.dashboardStats(); }
 
@@ -22,25 +30,14 @@ async function updateUserStatus(admin, id, estado, ip) {
   try {
     await conn.beginTransaction();
 
-    const user = await model.findUser(id, conn);
-    if (!user) throw err('Usuario no encontrado.', 404);
-
-    const isRealTransition = user.estado !== estado;
-    const isRestrictiveTarget = estado === 'inactivo' || estado === 'baneado';
-    const shouldIncrement = isRealTransition && isRestrictiveTarget;
-
-    if (isRealTransition) {
-      const statusAffected = await model.updateUserStatusConditional(id, estado, user.estado, conn);
-      if (statusAffected !== 1) {
-        throw err('El estado del usuario cambió. Intente nuevamente.', 409);
-      }
-
-      if (shouldIncrement) {
-        const versionAffected = await incrementTokenVersion(id, conn);
-        if (versionAffected !== 1) {
-          throw err('Error al actualizar el estado del usuario.', 500);
-        }
-      }
+    try {
+      await applyUserStatusTransition({
+        conn,
+        userId: id,
+        requestedEstado: estado
+      });
+    } catch (error) {
+      throw mapUserStatusTransitionError(error);
     }
 
     await notification.create(conn, id, {
