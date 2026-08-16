@@ -89,7 +89,8 @@ async function reactivateAccount(id, conn = pool) {
      WHERE id = ?
        AND cuenta_desactivada = TRUE
        AND anonimizado = FALSE
-       AND solicitud_eliminacion_estado <> 'aprobada'`,
+       AND solicitud_eliminacion_estado <> 'aprobada'
+       AND estado = 'inactivo'`,
     [id]
   );
   return result.affectedRows;
