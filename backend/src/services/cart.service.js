@@ -1,6 +1,7 @@
 const { pool } = require('../config/database');
 const persistent = require('../models/cartPersistent.model');
 const EFFECTIVE_PRICE_EXPR = `ROUND(CASE WHEN p.descuento_porcentaje > 0 THEN p.precio * (1 - p.descuento_porcentaje / 100) ELSE p.precio END, 2)`;
+function toCents(value){ return Math.round(Number(value) * 100); }
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 async function validateCart(items){
  if(!Array.isArray(items)||!items.length) throw err('El carrito debe contener items.',400);
@@ -18,7 +19,7 @@ async function validateCart(items){
   const precio_unitario=Number(p.precio_final); const subtotal=Number((precio_unitario*cantidad).toFixed(2));
   valid_items.push({producto_id,cantidad,nombre:p.nombre,tienda_id:p.tienda_id,tienda_nombre:p.tienda_nombre,precio_unitario,stock_actual:p.stock,subtotal});
  }
- const total=valid_items.reduce((a,b)=>a+b.subtotal,0);
+ const total=valid_items.reduce((a,b)=>a+toCents(b.subtotal),0)/100;
  return {valid_items,invalid_items,total,advertencias:invalid_items.map(i=>i.reason)};
 }
 function positiveInt(value, field='cantidad') { const n=Number(value); if(!Number.isInteger(n)||n<1) throw err(`${field} debe ser un entero mayor o igual a 1.`,400); return n; }

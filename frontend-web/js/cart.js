@@ -7,7 +7,8 @@ let clearingCart = false;
 let validatingCart = false;
 function localCart(){ try { return JSON.parse(localStorage.getItem('cc_cart_local') || '[]'); } catch { return []; } }
 function saveCart(list){ localStorage.setItem('cc_cart_local', JSON.stringify(list)); }
-function localSubtotal(list){ return list.reduce((sum,item)=>sum + Number(item.precio || 0) * Number(item.cantidad || 1),0); }
+function toCents(value){ return Math.round(Number(value) * 100); }
+function localSubtotal(list){ return list.reduce((sum,item)=>sum + toCents(Number(item.precio || 0) * Number(item.cantidad || 1)),0) / 100; }
 
 /** Genera el HTML de una línea de producto del carrito */
 function cartLineHtml(item, fromApi) {

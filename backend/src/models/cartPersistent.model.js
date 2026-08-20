@@ -1,6 +1,7 @@
 const { pool } = require('../config/database');
 
 const EFFECTIVE_PRICE_EXPR = `ROUND(CASE WHEN p.descuento_porcentaje > 0 THEN p.precio * (1 - p.descuento_porcentaje / 100) ELSE p.precio END, 2)`;
+function toCents(value) { return Math.round(Number(value) * 100); }
 
 async function getActiveCartId(usuarioId, conn = pool) {
   const [[existing]] = await conn.query(
@@ -63,7 +64,7 @@ async function getCart(usuarioId, conn = pool) {
     precio_unitario_snapshot: item.precio_unitario_snapshot == null ? null : Number(item.precio_unitario_snapshot),
     subtotal: Number(item.subtotal),
   }));
-  const total = normalized.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const total = normalized.reduce((sum, item) => sum + toCents(item.subtotal), 0) / 100;
   return { cart: { id: cartId, usuario_id: usuarioId, estado: 'activo' }, items: normalized, total };
 }
 
