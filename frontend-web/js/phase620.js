@@ -35,8 +35,26 @@ function initChatDetail(){
     if(!text && !hasFile){ showMessage('#chatDetailMessage','Escribe un mensaje o adjunta un archivo antes de enviar.'); return; }
     const bubble=document.createElement('div');
     bubble.className='cc-detail-message own';
-    const attachment=hasFile?`<span class="cc-attachment"><img class="cc-icon" src="assets/icons/cc-product-image-upload.svg" alt=""> ${file.files[0].name}</span>`:'';
-    bubble.innerHTML=`<b>Tú</b><p>${text || 'Adjunto enviado visualmente.'}</p>${attachment}<small>Ahora</small>`;
+    const sender=document.createElement('b');
+    sender.textContent='Tú';
+    bubble.appendChild(sender);
+    const message=document.createElement('p');
+    message.textContent=text || 'Adjunto enviado visualmente.';
+    bubble.appendChild(message);
+    if(hasFile){
+      const attachment=document.createElement('span');
+      attachment.className='cc-attachment';
+      const attachmentIcon=document.createElement('img');
+      attachmentIcon.className='cc-icon';
+      attachmentIcon.src='assets/icons/cc-product-image-upload.svg';
+      attachmentIcon.alt='';
+      attachment.appendChild(attachmentIcon);
+      attachment.appendChild(document.createTextNode(` ${file.files[0].name}`));
+      bubble.appendChild(attachment);
+    }
+    const timestamp=document.createElement('small');
+    timestamp.textContent='Ahora';
+    bubble.appendChild(timestamp);
     list?.appendChild(bubble);
     showMessage('#chatDetailMessage','Mensaje agregado visualmente. Integración real de chat pendiente.',true);
     form.reset();
