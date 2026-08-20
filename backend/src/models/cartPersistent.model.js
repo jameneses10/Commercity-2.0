@@ -1,5 +1,7 @@
 const { pool } = require('../config/database');
 
+const EFFECTIVE_PRICE_EXPR = `ROUND(CASE WHEN p.descuento_porcentaje > 0 THEN p.precio * (1 - p.descuento_porcentaje / 100) ELSE p.precio END, 2)`;
+
 async function getActiveCartId(usuarioId, conn = pool) {
   const [[existing]] = await conn.query(
     'SELECT id FROM carritos WHERE usuario_id = ? AND estado = ? LIMIT 1',
@@ -43,9 +45,9 @@ async function getCart(usuarioId, conn = pool) {
   const cartId = await getActiveCartId(usuarioId, conn);
   const [items] = await conn.query(
     `SELECT ci.id, ci.producto_id, ci.cantidad, ci.precio_unitario_snapshot,
-            p.nombre, p.precio, p.stock, p.estado, p.imagen_url,
+            p.nombre, ${EFFECTIVE_PRICE_EXPR} AS precio, p.stock, p.estado, p.imagen_url,
             p.tienda_id, t.nombre AS tienda_nombre, c.nombre AS categoria_nombre,
-            (ci.cantidad * p.precio) AS subtotal
+            ROUND(${EFFECTIVE_PRICE_EXPR} * ci.cantidad, 2) AS subtotal
        FROM carrito_items ci
        INNER JOIN productos p ON p.id = ci.producto_id
        INNER JOIN tiendas t ON t.id = p.tienda_id
