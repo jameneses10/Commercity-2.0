@@ -174,6 +174,77 @@ async function clearCart(){
   }
 }
 
+let clearModalContainer = null;
+
+function createClearModal() {
+  if (clearModalContainer) return;
+  clearModalContainer = document.createElement('div');
+  clearModalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950 hidden';
+  clearModalContainer.setAttribute('role', 'dialog');
+  clearModalContainer.setAttribute('aria-modal', 'true');
+  clearModalContainer.setAttribute('aria-labelledby', 'clearModalTitle');
+  clearModalContainer.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-800 relative">
+      <h2 id="clearModalTitle" class="text-xl font-bold mb-4 text-slate-900 dark:text-white Poppins">¿Vaciar carrito?</h2>
+      <div id="clearModalExplanation" class="text-sm text-slate-700 dark:text-slate-300 mb-6 space-y-2">
+        <p>Se eliminarán todos los productos del carrito.</p>
+      </div>
+      <div class="flex items-center gap-3 mt-6 justify-end">
+        <button id="clearModalCancelBtn" class="cc-btn outline px-4 py-2 text-sm font-bold rounded-xl transition-all border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300" type="button">Cancelar</button>
+        <button id="clearModalConfirmBtn" class="cc-btn px-4 py-2 text-sm font-bold rounded-xl transition-all text-white bg-rose-600 hover:bg-rose-700" type="button">Vaciar carrito</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(clearModalContainer);
+
+  clearModalContainer.addEventListener('click', (e) => {
+    if (e.target === clearModalContainer) closeClearModal();
+  });
+
+  document.getElementById('clearModalCancelBtn').addEventListener('click', closeClearModal);
+  document.getElementById('clearModalConfirmBtn').addEventListener('click', async () => {
+    if (clearingCart) return;
+    const btn = document.getElementById('clearModalConfirmBtn');
+    const originalText = btn.textContent;
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Vaciando...';
+      await clearCart();
+      closeClearModal();
+    } catch (error) {
+      closeClearModal();
+      showMessage('#cartMsg', error.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !clearModalContainer.classList.contains('hidden')) {
+      closeClearModal();
+    }
+  });
+}
+
+function showClearCartConfirmation() {
+  createClearModal();
+  clearModalContainer.classList.remove('hidden');
+  const cancelBtn = document.getElementById('clearModalCancelBtn');
+  if (cancelBtn) cancelBtn.focus();
+}
+
+function closeClearModal() {
+  if (clearModalContainer) {
+    clearModalContainer.classList.add('hidden');
+    const triggerBtn = document.querySelector('[data-clear-cart]');
+    if (triggerBtn) triggerBtn.focus();
+  }
+}
+
+
 export function initCart(){
   renderCart();
   document.querySelector('#validateCart')?.addEventListener('click', validateCart);
@@ -186,7 +257,7 @@ export function initCart(){
       if(remove) await removeItem(remove.dataset.removeCart);
       if(inc) await changeQty(inc.dataset.cartInc, 1);
       if(dec) await changeQty(dec.dataset.cartDec, -1);
-      if(clear) await clearCart();
+      if(clear) showClearCartConfirmation();
     } catch(error) { showMessage('#cartMsg', error.message); }
   });
 }
