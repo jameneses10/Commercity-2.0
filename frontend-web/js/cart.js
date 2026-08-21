@@ -93,10 +93,10 @@ function renderItems(items, fromApi=false){
   syncHeaderStatusIcons();
 }
 
-async function loadApiCart(){
+async function loadApiCart({announce=true}={}){
   apiCart = (await api.get('/cart')).data;
   renderItems(apiCart.items || [], true);
-  showMessage('#cartMsg', 'Carrito sincronizado con tu cuenta.', true);
+  if(announce) showMessage('#cartMsg', 'Carrito sincronizado con tu cuenta.', true);
 }
 function renderLocal(){ renderItems(localCart(), false); }
 async function renderCart(){ if(token()){ try { await loadApiCart(); return; } catch(error) { showMessage('#cartMsg', `${error.message} Se mantiene carrito local sin sesión.`); } } renderLocal(); }
@@ -109,7 +109,23 @@ async function validateCart(){
   if(!items.length){ showMessage('#cartMsg', 'Agrega productos antes de validar el carrito.'); return; }
   validatingCart = true;
   try {
-    await api.post('/cart/validate', {items});
+    const validation = (await api.post('/cart/validate', {items})).data || {};
+    const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
+    const priceChanges = Array.isArray(validation.price_changes) ? validation.price_changes : [];
+    const issues = [...invalidItems, ...priceChanges];
+    if(issues.length) {
+      const message = issues.map(item => String(item.reason || 'El carrito requiere revisión.')).join(' ');
+      showMessage('#cartMsg', message);
+      if(token()) {
+        try {
+          await loadApiCart({announce:false});
+          showMessage('#cartMsg', message);
+        } catch(refreshError) {
+          showMessage('#cartMsg', `${message} ${refreshError.message || 'No fue posible actualizar los valores del carrito.'}`);
+        }
+      }
+      return;
+    }
     showMessage('#cartMsg', 'Carrito validado con la API real.', true);
   } catch(error) {
     showMessage('#cartMsg', `${error.message} El carrito se mantiene sin perder productos.`);

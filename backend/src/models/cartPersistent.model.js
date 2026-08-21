@@ -18,7 +18,8 @@ async function getActiveCartId(usuarioId, conn = pool) {
 
 async function getProduct(productId, conn = pool) {
   const [[product]] = await conn.query(
-    `SELECT p.id, p.nombre, p.precio, p.stock, p.estado, p.imagen_url, p.tienda_id,
+    `SELECT p.id, p.nombre, p.precio, ${EFFECTIVE_PRICE_EXPR} AS precio_efectivo,
+            p.stock, p.estado, p.imagen_url, p.tienda_id,
             t.nombre AS tienda_nombre, t.estado AS tienda_estado,
             c.nombre AS categoria_nombre, c.estado AS categoria_estado
        FROM productos p
@@ -102,8 +103,8 @@ async function upsertItem(usuarioId, productId, cantidad) {
     await conn.query(
       `INSERT INTO carrito_items (carrito_id, producto_id, cantidad, precio_unitario_snapshot)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE cantidad = VALUES(cantidad), precio_unitario_snapshot = VALUES(precio_unitario_snapshot)`,
-      [cartId, productId, nextQty, product.precio]
+       ON DUPLICATE KEY UPDATE cantidad = VALUES(cantidad)`,
+      [cartId, productId, nextQty, product.precio_efectivo]
     );
     const cart = await getCart(usuarioId, conn);
     await conn.commit();
@@ -137,7 +138,7 @@ async function updateItem(usuarioId, itemId, cantidad) {
       error.statusCode = 409;
       throw error;
     }
-    await conn.query('UPDATE carrito_items SET cantidad = ?, precio_unitario_snapshot = ? WHERE id = ?', [cantidad, product.precio, itemId]);
+    await conn.query('UPDATE carrito_items SET cantidad = ? WHERE id = ?', [cantidad, itemId]);
     const cart = await getCart(usuarioId, conn);
     await conn.commit();
     return cart;
@@ -166,4 +167,46 @@ async function clearCart(usuarioId) {
   return getCart(usuarioId);
 }
 
-module.exports = { getCart, upsertItem, updateItem, deleteItem, clearCart };
+async function getPriceSnapshots(usuarioId, productIds, conn = pool) {
+  const ids = [...new Set(productIds.map(Number).filter(Number.isInteger))];
+  if (!ids.length) return new Map();
+  const placeholders = ids.map(() => '?').join(', ');
+  const [rows] = await conn.query(
+    `SELECT ci.producto_id, ci.precio_unitario_snapshot
+       FROM carrito_items ci
+       INNER JOIN carritos c ON c.id = ci.carrito_id
+      WHERE c.usuario_id = ? AND c.estado = 'activo'
+        AND ci.producto_id IN (${placeholders})`,
+    [usuarioId, ...ids]
+  );
+  return new Map(rows.map((row) => [Number(row.producto_id), row.precio_unitario_snapshot]));
+}
+
+async function advancePriceSnapshots(usuarioId, updates, conn = pool) {
+  if (!updates.length) return 0;
+  const byProduct = new Map(updates.map((update) => [Number(update.producto_id), Number(update.precio_actual)]));
+  const entries = [...byProduct.entries()];
+  const cases = entries.map(() => 'WHEN ? THEN ?').join(' ');
+  const placeholders = entries.map(() => '?').join(', ');
+  const values = entries.flatMap(([productId, price]) => [productId, price]);
+  const [result] = await conn.query(
+    `UPDATE carrito_items ci
+       INNER JOIN carritos c ON c.id = ci.carrito_id
+        SET ci.precio_unitario_snapshot = CASE ci.producto_id ${cases}
+          ELSE ci.precio_unitario_snapshot END
+      WHERE c.usuario_id = ? AND c.estado = 'activo'
+        AND ci.producto_id IN (${placeholders})`,
+    [...values, usuarioId, ...entries.map(([productId]) => productId)]
+  );
+  return result.affectedRows;
+}
+
+module.exports = {
+  getCart,
+  upsertItem,
+  updateItem,
+  deleteItem,
+  clearCart,
+  getPriceSnapshots,
+  advancePriceSnapshots,
+};

@@ -6,7 +6,8 @@ const logService=require('./log.service');
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 async function createOrder(user,{direccion_id,items}){
  await addressService.own(direccion_id,user);
- const cart=await cartService.validateCart(items);
+ const cart=await cartService.validateCart(user,items);
+ if(cart.price_changes.length) throw err(cart.price_changes.map(change=>change.reason).join(' ')||'Los precios del carrito cambiaron.',409);
  if(cart.invalid_items.length) throw err('El carrito contiene productos inválidos.',409);
  const conn=await pool.getConnection();
  try{ await conn.beginTransaction();

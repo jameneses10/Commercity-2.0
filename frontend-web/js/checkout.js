@@ -4,6 +4,7 @@ import { escapeHtml, money, showMessage } from './ui.js';
 let context = {
     direccion_id: null,
     valid_items: [],
+    price_changes: [],
     total: 0,
     valid: false,
     validation_message: ''
@@ -39,6 +40,25 @@ function invalidItemsMessage(items) {
     return items.map(invalidItemMessage).join(' ');
 }
 
+function priceChangesMessage(items) {
+    return items
+        .map(item => String(item.reason || `El precio de ${item.producto_nombre || `Producto ${item.producto_id}`} cambió.`))
+        .join(' ');
+}
+
+function validationMessage(invalidItems, priceChanges) {
+    return [
+        invalidItems.length ? invalidItemsMessage(invalidItems) : '',
+        priceChanges.length ? priceChangesMessage(priceChanges) : '',
+    ].filter(Boolean).join(' ');
+}
+
+function renderCheckoutSummary(items, total) {
+    renderItems(items);
+    subtotalEl.textContent = money(total);
+    totalEl.textContent = money(total);
+}
+
 export function showCheckoutMessage(message) {
     showMessage('[data-payment-message]', message, false);
     paymentMessage?.classList.remove('cc-hidden');
@@ -51,6 +71,7 @@ export function hideCheckoutMessage() {
 
 export async function revalidateCheckout() {
     context.validation_message = '';
+    context.price_changes = [];
     hideCheckoutMessage();
     try {
         const cartReq = await api.get('/cart');
@@ -64,13 +85,19 @@ export async function revalidateCheckout() {
         const validateReq = await api.post('/cart/validate', { items: cartItems });
         const validation = validateReq.data;
         const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
+        const priceChanges = Array.isArray(validation.price_changes) ? validation.price_changes : [];
 
         context.valid_items = validation.valid_items || [];
+        context.price_changes = priceChanges;
         context.total = validation.total || 0;
-        context.valid = (context.valid_items.length > 0 && invalidItems.length === 0 && context.direccion_id);
+        context.valid = (context.valid_items.length > 0 && invalidItems.length === 0 && priceChanges.length === 0 && context.direccion_id);
 
-        if(invalidItems.length > 0) {
-            context.validation_message = invalidItemsMessage(invalidItems);
+        if(invalidItems.length === 0 && context.valid_items.length > 0) {
+            renderCheckoutSummary(context.valid_items, context.total);
+        }
+
+        if(invalidItems.length > 0 || priceChanges.length > 0) {
+            context.validation_message = validationMessage(invalidItems, priceChanges);
             showCheckoutMessage(context.validation_message);
         }
 
@@ -155,18 +182,21 @@ async function loadCart() {
         const validation = validateReq.data;
 
         context.valid_items = validation.valid_items || [];
+        context.price_changes = Array.isArray(validation.price_changes) ? validation.price_changes : [];
         context.total = validation.total || 0;
 
         const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
+        const priceChanges = context.price_changes;
         if(context.valid_items.length === 0 || invalidItems.length > 0) {
             renderEmptyCart(true);
-            if(invalidItems.length > 0) showCheckoutMessage(invalidItemsMessage(invalidItems));
+            if(invalidItems.length > 0 || priceChanges.length > 0) {
+                showCheckoutMessage(validationMessage(invalidItems, priceChanges));
+            }
             return;
         }
 
-        renderItems(context.valid_items);
-        subtotalEl.textContent = money(context.total);
-        totalEl.textContent = money(context.total);
+        renderCheckoutSummary(context.valid_items, context.total);
+        if(priceChanges.length > 0) showCheckoutMessage(priceChangesMessage(priceChanges));
 
         updateSubmitState();
     } catch(err) {
