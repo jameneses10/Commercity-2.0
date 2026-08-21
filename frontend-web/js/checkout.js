@@ -1,11 +1,12 @@
 import { api, currentUser, token } from './api.js';
-import { escapeHtml, money } from './ui.js';
+import { escapeHtml, money, showMessage } from './ui.js';
 
 let context = {
     direccion_id: null,
     valid_items: [],
     total: 0,
-    valid: false
+    valid: false,
+    validation_message: ''
 };
 
 const root = document.querySelector('[data-checkout-root]');
@@ -16,27 +17,68 @@ const subtotalEl = document.querySelector('[data-checkout-subtotal]');
 const totalEl = document.querySelector('[data-checkout-total]');
 const emptyCartMsg = document.querySelector('[data-checkout-empty]');
 const submitBtn = document.querySelector('[data-payment-submit]');
+const paymentMessage = document.querySelector('[data-payment-message]');
 
 let addressesData = [];
 
+function invalidItemMessage(item = {}) {
+    const providedName = item.nombre || item.producto_nombre;
+    const label = providedName
+        ? String(providedName)
+        : (item.producto_id ? `Producto ${item.producto_id}` : 'Un producto');
+    const state = String(item.estado || '').toLowerCase();
+    const exhaustedByStock = item.stock_actual !== undefined && Number(item.stock_actual) === 0;
+
+    if(state === 'agotado' || exhaustedByStock) return `${label} quedó agotado.`;
+    if(state === 'oculto') return `${label} fue desactivado y ya no está disponible.`;
+    if(state === 'eliminado') return `${label} ya no está disponible.`;
+    return `${label}: ${String(item.reason || 'Ya no está disponible.')}`;
+}
+
+function invalidItemsMessage(items) {
+    return items.map(invalidItemMessage).join(' ');
+}
+
+export function showCheckoutMessage(message) {
+    showMessage('[data-payment-message]', message, false);
+    paymentMessage?.classList.remove('cc-hidden');
+}
+
+export function hideCheckoutMessage() {
+    paymentMessage?.classList.add('cc-hidden');
+    paymentMessage?.replaceChildren();
+}
+
 export async function revalidateCheckout() {
+    context.validation_message = '';
+    hideCheckoutMessage();
     try {
         const cartReq = await api.get('/cart');
         const cartItems = cartReq.data?.items || [];
         if(!cartItems.length) {
             context.valid = false;
+            context.validation_message = 'El carrito no tiene productos para validar.';
+            showCheckoutMessage(context.validation_message);
             return context;
         }
         const validateReq = await api.post('/cart/validate', { items: cartItems });
         const validation = validateReq.data;
+        const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
 
         context.valid_items = validation.valid_items || [];
         context.total = validation.total || 0;
-        context.valid = (context.valid_items.length > 0 && validation.invalid_items.length === 0 && context.direccion_id);
+        context.valid = (context.valid_items.length > 0 && invalidItems.length === 0 && context.direccion_id);
+
+        if(invalidItems.length > 0) {
+            context.validation_message = invalidItemsMessage(invalidItems);
+            showCheckoutMessage(context.validation_message);
+        }
 
         return context;
     } catch(err) {
         context.valid = false;
+        context.validation_message = err.message || 'No fue posible validar el carrito.';
+        showCheckoutMessage(context.validation_message);
         return context;
     }
 }
@@ -99,6 +141,7 @@ function updateAddressFields(id) {
 }
 
 async function loadCart() {
+    hideCheckoutMessage();
     try {
         const cartReq = await api.get('/cart');
         const cartItems = cartReq.data?.items || [];
@@ -114,8 +157,10 @@ async function loadCart() {
         context.valid_items = validation.valid_items || [];
         context.total = validation.total || 0;
 
-        if(context.valid_items.length === 0 || validation.invalid_items.length > 0) {
+        const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
+        if(context.valid_items.length === 0 || invalidItems.length > 0) {
             renderEmptyCart(true);
+            if(invalidItems.length > 0) showCheckoutMessage(invalidItemsMessage(invalidItems));
             return;
         }
 
@@ -126,6 +171,7 @@ async function loadCart() {
         updateSubmitState();
     } catch(err) {
         renderEmptyCart(true);
+        showCheckoutMessage(err.message || 'No fue posible validar el carrito.');
     }
 }
 

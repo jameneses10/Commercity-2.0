@@ -1,10 +1,8 @@
 import { api } from './api.js';
-import { revalidateCheckout } from './checkout.js';
-import { showMessage } from './ui.js';
+import { hideCheckoutMessage, revalidateCheckout, showCheckoutMessage } from './checkout.js';
 
 const paymentForm = document.querySelector('[data-payment-form]');
 const submitBtn = document.querySelector('[data-payment-submit]');
-const messageBox = document.querySelector('[data-payment-message]');
 
 let checkoutSubmitting = false;
 
@@ -13,6 +11,7 @@ if (paymentForm) {
         e.preventDefault();
 
         if (checkoutSubmitting) return;
+        hideCheckoutMessage();
 
         const formData = new FormData(paymentForm);
         let cardNumber = formData.get('card_number')?.toString() || '';
@@ -33,7 +32,7 @@ if (paymentForm) {
             // 1. Revalidar
             const ctx = await revalidateCheckout();
             if (!ctx.valid || !ctx.direccion_id || ctx.valid_items.length === 0) {
-                showMessage('[data-payment-message]', 'El carrito o la dirección ya no son válidos. Revisa tu pedido.', false);
+                showCheckoutMessage(ctx.validation_message || 'El carrito o la dirección ya no son válidos. Revisa tu pedido.');
                 return;
             }
 
@@ -79,10 +78,10 @@ if (paymentForm) {
                 sessionStorage.setItem('cc_payment_result', JSON.stringify(resultData));
                 window.location.href = 'pago-realizado.html';
             } else {
-                showMessage('[data-payment-message]', payment?.mensaje || 'Pago rechazado.', false);
+                showCheckoutMessage(payment?.mensaje || 'Pago rechazado.');
             }
         } catch (error) {
-            showMessage('[data-payment-message]', error.message || 'Error al procesar la solicitud.', false);
+            showCheckoutMessage(error.message || 'Error al procesar la solicitud.');
         } finally {
             checkoutSubmitting = false;
             if (submitBtn) {
