@@ -68,18 +68,21 @@ function renderItems(items, fromApi=false){
       listBox.innerHTML = '';
     } else {
       // Agrupar por tienda
-      const groups = {};
+      const groups = new Map();
       items.forEach(item => {
-        const key = item.tienda_nombre || item.store_name || item.tienda_id || 'Tienda CommerCity';
-        if(!groups[key]) groups[key] = [];
-        groups[key].push(item);
+        const storeId = item.tienda_id ?? item.store_id;
+        const storeName = item.tienda_nombre || item.store_name || 'Tienda CommerCity';
+        const hasStoreId = storeId !== undefined && storeId !== null && storeId !== '';
+        const key = hasStoreId ? `id:${storeId}` : `name:${storeName}`;
+        if(!groups.has(key)) groups.set(key, {storeName, items: []});
+        groups.get(key).items.push(item);
       });
 
-      const hasMultipleStores = Object.keys(groups).length > 1;
-      if(hasMultipleStores || (fromApi && Object.keys(groups).length >= 1)){
+      const hasMultipleStores = groups.size > 1;
+      if(hasMultipleStores || (fromApi && groups.size >= 1)){
         // Render agrupado por tienda
-        listBox.innerHTML = Object.entries(groups)
-          .map(([storeName, storeItems]) => vendorGroupHtml(storeName, storeItems, fromApi))
+        listBox.innerHTML = Array.from(groups.values())
+          .map(group => vendorGroupHtml(group.storeName, group.items, fromApi))
           .join('');
       } else {
         // Render flat (carrito local sin datos de tienda)
