@@ -165,8 +165,19 @@ export async function addCart(product){
   const key='cc_cart_local';
   const list=JSON.parse(localStorage.getItem(key) || '[]');
   const found=list.find(item=>String(item.id)===id);
-  if(found) found.cantidad += 1;
-  else list.push({ id, nombre: product.nombre || 'Producto CommerCity', precio: productPrice(product), cantidad:1 });
+  const storeId=product.tienda_id ?? product.store_id;
+  const hasStoreId=storeId !== undefined && storeId !== null && storeId !== '';
+  const explicitStoreName=product.tienda_nombre || product.store_name || product.vendedor_nombre || product.seller_name;
+  const storeName=String(explicitStoreName || 'Tienda CommerCity');
+  if(found){
+    found.cantidad += 1;
+    if(hasStoreId) found.tienda_id=storeId;
+    if(explicitStoreName) found.tienda_nombre=String(explicitStoreName);
+  } else {
+    const item={ id, nombre: product.nombre || 'Producto CommerCity', precio: productPrice(product), cantidad:1, tienda_nombre:storeName };
+    if(hasStoreId) item.tienda_id=storeId;
+    list.push(item);
+  }
   localStorage.setItem(key, JSON.stringify(list));
   return { local:true };
 }
