@@ -3,7 +3,7 @@ const MENUS = {
     title: 'Comprador',
     items: [
       { key: 'panel', label: 'Panel', href: 'comprador.html', icon: 'cc-user-profile.svg', routes: ['comprador.html'] },
-      { key: 'pedidos', label: 'Pedidos', href: 'mis-pedidos.html', icon: 'cc-order-history.svg', routes: ['mis-pedidos.html', 'pedido-detalle.html'] },
+      { key: 'pedidos', label: 'Mis pedidos', href: 'mis-pedidos.html', icon: 'cc-order-history.svg', routes: ['mis-pedidos.html', 'pedido-detalle.html'] },
       { key: 'favoritos', label: 'Favoritos', href: 'favoritos.html', icon: 'cc-favorites-wishlist.svg', routes: ['favoritos.html'] },
       { key: 'direcciones', label: 'Direcciones', href: 'direcciones.html', icon: 'cc-address-location.svg', routes: ['direcciones.html'] },
       { key: 'perfil', label: 'Perfil', href: 'perfil.html', icon: 'cc-user-avatar.svg', routes: ['perfil.html'] },
