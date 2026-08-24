@@ -243,7 +243,7 @@ export function footer(){
 
 function iconNameFromSrc(src=''){ const clean=String(src).split('?')[0].split('#')[0]; return clean.substring(clean.lastIndexOf('/')+1); }
 function replaceIconImage(img){
-  if(img.dataset.uiIconNormalized==='true' || img.closest('.cc-brand') || img.classList.contains('cc-logo')) return;
+  if(img.dataset.uiIconNormalized==='true' || img.closest('.cc-brand') || img.classList.contains('cc-logo') || img.matches('[data-profile-avatar], #profileAvatarImg')) return;
   const src=img.getAttribute('src') || '';
   if(!src.includes('assets/icons/')) return;
   const name=iconNameFromSrc(src);
