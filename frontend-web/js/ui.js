@@ -60,6 +60,17 @@ function iconButton({ href, icon, label, active=false, extra='', iconAttrs='' })
   if (href) return `<a class="${cls}" href="${href}" title="${label}" aria-label="${label}" ${extra}>${headerIcon(icon, iconAttrs)}</a>`;
   return `<button class="${cls}" type="button" title="${label}" aria-label="${label}" ${extra}>${headerIcon(icon, iconAttrs)}</button>`;
 }
+function buyerProfileMenu(){
+  return `<div data-profile-menu-root style="position:relative;display:inline-flex">
+    <button class="cc-icon-btn" type="button" title="Perfil" aria-label="Abrir menú de perfil" data-profile-menu-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="cc-buyer-profile-menu">
+      ${headerIcon('cc-user-profile.svg')}
+    </button>
+    <div id="cc-buyer-profile-menu" data-profile-menu role="menu" hidden style="position:absolute;right:0;top:calc(100% + 8px);z-index:80;width:190px;max-width:calc(100vw - 20px);background:var(--cc-panel);color:var(--cc-ink);border:1px solid var(--cc-line);border-radius:10px;box-shadow:0 8px 0 var(--cc-shadow);padding:6px">
+      <a href="comprador.html" role="menuitem" style="display:flex;align-items:center;width:100%;min-height:44px;padding:10px 12px;border-radius:7px;font-weight:800;color:var(--cc-ink);text-decoration:none">Mi cuenta</a>
+      <a href="mis-pedidos.html" role="menuitem" style="display:flex;align-items:center;width:100%;min-height:44px;margin-top:4px;padding:10px 12px;border-radius:7px;font-weight:800;color:var(--cc-ink);text-decoration:none">Mis pedidos</a>
+    </div>
+  </div>`;
+}
 export function applyTheme(){
   const mode=localStorage.getItem('cc_theme') || 'day';
   document.body.classList.toggle('cc-night', mode==='night');
@@ -71,7 +82,7 @@ export function toggleTheme(){ const next=document.body.classList.contains('cc-n
 export function header(active='home'){
   const user=currentUser(); const account=accountHref(user);
   const sessionActions = user
-    ? `${iconButton({href:account, icon:'cc-user-profile.svg', label:'Mi cuenta'})}${iconButton({icon:'cc-logout.svg', label:'Cerrar sesión', extra:'data-logout'})}`
+    ? `${user.rol==='comprador' ? buyerProfileMenu() : iconButton({href:account, icon:'cc-user-profile.svg', label:'Mi cuenta'})}${iconButton({icon:'cc-logout.svg', label:'Cerrar sesión', extra:'data-logout'})}`
     : iconButton({href:'login.html', icon:'cc-login.svg', label:'Ingresar'});
   return `
 <header class="cc-header" role="banner">
@@ -316,7 +327,48 @@ export async function syncHeaderStatusIcons(){
   return {cartTotal, unreadChatCount:0, unreadNotificationCount:notificationTotal};
 }
 export function mountShell(active){ applyTheme(); document.body.insertAdjacentHTML('afterbegin', header(active)); document.body.insertAdjacentHTML('beforeend', footer()); bindHeaderActions(); normalizeInterfaceIcons(); applyTheme(); syncHeaderStatusIcons(); }
-export function bindHeaderActions(){ document.querySelectorAll('[data-theme-toggle]').forEach(b=>b.addEventListener('click',toggleTheme)); document.querySelectorAll('[data-logout]').forEach(b=>b.addEventListener('click',()=>{clearSession(); location.href='login.html';})); }
+export function bindHeaderActions(){
+  document.querySelectorAll('[data-theme-toggle]').forEach(b=>b.addEventListener('click',toggleTheme));
+  document.querySelectorAll('[data-logout]').forEach(b=>b.addEventListener('click',()=>{clearSession(); location.href='login.html';}));
+
+  const profileToggle=document.querySelector('[data-profile-menu-toggle]');
+  const profileMenu=document.querySelector('[data-profile-menu]');
+  const profileRoot=profileToggle?.closest('[data-profile-menu-root]');
+  if(!profileToggle || !profileMenu || !profileRoot) return;
+
+  const positionProfileMenu=()=>{
+    profileMenu.style.transform='';
+    const rect=profileMenu.getBoundingClientRect();
+    const margin=10;
+    let offsetX=0;
+    if(rect.left<margin) offsetX+=margin-rect.left;
+    if(rect.right+offsetX>window.innerWidth-margin) offsetX+=(window.innerWidth-margin)-(rect.right+offsetX);
+    if(offsetX!==0) profileMenu.style.transform=`translateX(${offsetX}px)`;
+  };
+
+  const closeProfileMenu=(returnFocus=false)=>{
+    profileMenu.hidden=true;
+    profileMenu.style.transform='';
+    profileToggle.setAttribute('aria-expanded','false');
+    if(returnFocus) profileToggle.focus();
+  };
+
+  profileToggle.addEventListener('click',()=>{
+    const shouldOpen=profileMenu.hidden;
+    if(!shouldOpen){ closeProfileMenu(); return; }
+    profileMenu.hidden=false;
+    profileToggle.setAttribute('aria-expanded','true');
+    positionProfileMenu();
+  });
+
+  document.addEventListener('click',event=>{
+    if(!profileMenu.hidden && !profileRoot.contains(event.target)) closeProfileMenu();
+  });
+
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && !profileMenu.hidden) closeProfileMenu(true);
+  });
+}
 export function productCard(p){
   const id=p.id || p.producto_id || p.product_id || 0;
   const name=p.nombre || p.name || 'Producto CommerCity';
