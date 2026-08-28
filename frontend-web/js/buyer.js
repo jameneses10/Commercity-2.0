@@ -35,19 +35,30 @@ function empty(iconName,title,text,action=''){
 function paymentStatus(o) { return safe(o.estado_pago || 'pendiente').toLowerCase(); }
 function generalStatus(o) { return safe(o.estado_general || 'creado').toLowerCase(); }
 function capitalize(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
+function orderDateKey(value) {
+  if(!value) return '';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime())) return '';
+  const year=date.getFullYear();
+  const month=String(date.getMonth()+1).padStart(2,'0');
+  const day=String(date.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
 
 function orderCard(o){
   const id=o.id || o.numero || o.codigo || 'pendiente';
   const payStatus=paymentStatus(o);
   const genStatus=generalStatus(o);
   const date=o.created_at || o.fecha || o.fecha_pedido || '';
+  const dateKey=orderDateKey(date);
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-order-date="${escHtml(dateKey)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
 }
 
 function bindOrderFilters(){
   const group=document.querySelector('[data-order-filters]');
   const box=document.querySelector('[data-orders-list], .cc-order-board');
+  const dateInput=document.querySelector('[data-order-date-filter]');
   if(!group || !box) return;
 
   let state=box.querySelector('[data-dynamic-empty]');
@@ -62,16 +73,21 @@ function bindOrderFilters(){
   const apply=()=>{
     const cards=[...box.querySelectorAll('.cc-order-card')];
     if(!cards.length) return;
-    const filter=group.querySelector('.active')?.dataset.orderFilter || 'all';
+    const stateFilter=group.querySelector('.active')?.dataset.orderFilter || 'all';
+    const dateFilter=dateInput?.value || '';
     let visible=0;
     cards.forEach(card=>{
       const genStatus=card.dataset.generalStatus;
-      const show=filter==='all' || genStatus===filter;
+      const orderDate=card.dataset.orderDate || '';
+      const matchesState=stateFilter==='all' || genStatus===stateFilter;
+      const matchesDate=!dateFilter || orderDate===dateFilter;
+      const show=matchesState && matchesDate;
       card.classList.toggle('hidden',!show); if(show) visible++;
     });
     if(!visible) state.classList.remove('hidden'); else state.classList.add('hidden');
   };
   group.querySelectorAll('[data-order-filter]').forEach(btn=>btn.addEventListener('click',()=>{ group.querySelectorAll('[data-order-filter]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); apply(); }));
+  dateInput?.addEventListener('input',apply);
   apply();
 }
 
