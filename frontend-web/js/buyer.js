@@ -42,7 +42,7 @@ function orderCard(o){
   const genStatus=generalStatus(o);
   const date=o.created_at || o.fecha || o.fecha_pedido || '';
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='entregado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
 }
 
 function bindOrderFilters(){
@@ -65,9 +65,8 @@ function bindOrderFilters(){
     const filter=group.querySelector('.active')?.dataset.orderFilter || 'all';
     let visible=0;
     cards.forEach(card=>{
-      const payStatus=card.dataset.paymentStatus;
       const genStatus=card.dataset.generalStatus;
-      const show=filter==='all' || (filter==='pendiente' && payStatus==='pendiente') || (filter==='pagado' && payStatus==='pagado') || (['enviado','entregado','cancelado'].includes(filter) && genStatus===filter);
+      const show=filter==='all' || genStatus===filter;
       card.classList.toggle('hidden',!show); if(show) visible++;
     });
     if(!visible) state.classList.remove('hidden'); else state.classList.add('hidden');
