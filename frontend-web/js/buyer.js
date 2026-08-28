@@ -44,6 +44,7 @@ function orderDateKey(value) {
   const day=String(date.getDate()).padStart(2,'0');
   return `${year}-${month}-${day}`;
 }
+function orderStores(o) { return Array.isArray(o?.tiendas) ? o.tiendas : []; }
 
 function orderCard(o){
   const id=o.id || o.numero || o.codigo || 'pendiente';
@@ -51,14 +52,38 @@ function orderCard(o){
   const genStatus=generalStatus(o);
   const date=o.created_at || o.fecha || o.fecha_pedido || '';
   const dateKey=orderDateKey(date);
+  const storeIds=orderStores(o).map(store=>safe(store?.id).trim()).filter(Boolean);
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-order-date="${escHtml(dateKey)}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-order-date="${escHtml(dateKey)}" data-order-store-ids="${escHtml(storeIds.join(','))}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+}
+
+function populateOrderStoreFilter(orders){
+  const select=document.querySelector('[data-order-store-filter]');
+  if(!select) return;
+  select.replaceChildren();
+  const allOption=document.createElement('option');
+  allOption.value='';
+  allOption.textContent='Todas las tiendas';
+  select.appendChild(allOption);
+  const stores=new Map();
+  orders.forEach(order=>orderStores(order).forEach(store=>{
+    const id=safe(store?.id).trim();
+    const nombre=safe(store?.nombre).trim();
+    if(id && nombre && !stores.has(id)) stores.set(id,{id,nombre});
+  }));
+  [...stores.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'})).forEach(store=>{
+    const option=document.createElement('option');
+    option.value=String(store.id);
+    option.textContent=store.nombre;
+    select.appendChild(option);
+  });
 }
 
 function bindOrderFilters(){
   const group=document.querySelector('[data-order-filters]');
   const box=document.querySelector('[data-orders-list], .cc-order-board');
   const dateInput=document.querySelector('[data-order-date-filter]');
+  const storeInput=document.querySelector('[data-order-store-filter]');
   if(!group || !box) return;
 
   let state=box.querySelector('[data-dynamic-empty]');
@@ -75,19 +100,23 @@ function bindOrderFilters(){
     if(!cards.length) return;
     const stateFilter=group.querySelector('.active')?.dataset.orderFilter || 'all';
     const dateFilter=dateInput?.value || '';
+    const storeFilter=storeInput?.value || '';
     let visible=0;
     cards.forEach(card=>{
       const genStatus=card.dataset.generalStatus;
       const orderDate=card.dataset.orderDate || '';
+      const storeIds=(card.dataset.orderStoreIds || '').split(',').filter(Boolean);
       const matchesState=stateFilter==='all' || genStatus===stateFilter;
       const matchesDate=!dateFilter || orderDate===dateFilter;
-      const show=matchesState && matchesDate;
+      const matchesStore=!storeFilter || storeIds.includes(storeFilter);
+      const show=matchesState && matchesDate && matchesStore;
       card.classList.toggle('hidden',!show); if(show) visible++;
     });
     if(!visible) state.classList.remove('hidden'); else state.classList.add('hidden');
   };
   group.querySelectorAll('[data-order-filter]').forEach(btn=>btn.addEventListener('click',()=>{ group.querySelectorAll('[data-order-filter]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); apply(); }));
   dateInput?.addEventListener('input',apply);
+  storeInput?.addEventListener('change',apply);
   apply();
 }
 
@@ -98,6 +127,7 @@ async function initOrders(){
   try{
     const data=await api.get('/orders/my-orders');
     const orders=data?.data?.orders || data?.orders || [];
+    populateOrderStoreFilter(orders);
     box.innerHTML=orders.length ? orders.map(orderCard).join('') : empty('cc-order-history.svg','Aún no tienes pedidos.','Cuando compres en CommerCity, tus pedidos reales aparecerán aquí.','<a class="cc-btn" href="productos.html">Explorar productos</a>');
   }catch(error){
     box.innerHTML=empty('cc-order-history.svg','No pudimos cargar pedidos.','La API respondió: '+escHtml(safe(error?.message, 'Error desconocido')),'<a class="cc-btn" href="productos.html">Seguir comprando</a>');
