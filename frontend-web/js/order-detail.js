@@ -6,6 +6,68 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, shipmentLabel, carrierRow, guideRow }) {
+  if (carrierRow) {
+    carrierRow.hidden = true;
+    carrierRow.classList.add('hidden');
+  }
+  if (guideRow) {
+    guideRow.hidden = true;
+    guideRow.classList.add('hidden');
+  }
+
+  if (!shipmentBlock || !shipmentLabel) return;
+
+  shipmentBlock.querySelector('[data-order-packages]')?.remove();
+
+  if (shipmentReadState === 'unavailable') {
+    shipmentLabel.textContent = 'Información de paquetes no disponible.';
+    return;
+  }
+
+  if (shipments.length === 0) {
+    shipmentLabel.textContent = 'Los paquetes aún no han sido generados.';
+    return;
+  }
+
+  if (shipments.length === 1) {
+    const [onlyShipment] = shipments;
+    shipmentLabel.textContent = capitalize(onlyShipment?.estado || 'No disponible');
+  } else {
+    shipmentLabel.textContent = `${shipments.length} paquetes`;
+  }
+
+  const packageList = document.createElement('div');
+  packageList.dataset.orderPackages = '';
+  packageList.className = 'mt-3 space-y-3';
+
+  shipments.forEach((shipment, index) => {
+    const storeName = String(shipment?.tienda_nombre || '').trim() || 'Tienda';
+    const carrier = String(shipment?.transportadora || '').trim() || 'No disponible';
+    const guide = String(shipment?.numero_guia || '').trim() || 'Guía aún no asignada';
+
+    const packageEntry = document.createElement('div');
+    packageEntry.className = 'rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-sm space-y-1';
+
+    const identity = document.createElement('strong');
+    identity.className = 'block font-bold text-slate-900 dark:text-white';
+    identity.textContent = `Paquete ${index + 1} · ${storeName}`;
+
+    const carrierText = document.createElement('p');
+    carrierText.className = 'cc-muted text-xs';
+    carrierText.textContent = `Transportadora: ${carrier}`;
+
+    const guideText = document.createElement('p');
+    guideText.className = 'cc-muted text-xs';
+    guideText.textContent = `Guía: ${guide}`;
+
+    packageEntry.append(identity, carrierText, guideText);
+    packageList.append(packageEntry);
+  });
+
+  shipmentBlock.append(packageList);
+}
+
 async function initOrderDetail() {
   const loading = document.getElementById('orderDetailLoading');
   const errorBox = document.getElementById('orderDetailError');
@@ -52,20 +114,18 @@ async function initOrderDetail() {
       }
     }
 
-    let shipmentState = 'No disponible';
-    let carrier = 'No disponible';
-    let guide = 'No disponible';
+    let orderShipments = [];
+    let shipmentReadState = 'ok';
 
     try {
       const shipData = await api.get('/shipments/my-shipments');
-      const shipments = shipData?.data?.shipments || shipData?.shipments || [];
-      const match = shipments.find(s => s.pedido_id === id);
-      if (match) {
-        shipmentState = capitalize(match.estado || 'No disponible');
-        carrier = match.transportadora || 'No disponible';
-        guide = match.numero_guia || 'No disponible';
-      }
+      let shipments = shipData?.data?.shipments || shipData?.shipments || [];
+      if (!Array.isArray(shipments)) shipments = [];
+      orderShipments = shipments.filter(
+        shipment => shipment && String(shipment.pedido_id) === String(id)
+      );
     } catch (e) {
+      shipmentReadState = 'unavailable';
       console.error('Error al cargar envíos:', e);
     }
 
@@ -96,14 +156,14 @@ async function initOrderDetail() {
     const labelAddr = document.querySelector('[data-order-address]');
     if (labelAddr) labelAddr.textContent = escapeHtml(addressStr);
 
-    const labelShip = document.querySelector('[data-order-shipment]');
-    if (labelShip) labelShip.textContent = escapeHtml(shipmentState);
-
-    const labelCarrier = document.querySelector('[data-order-carrier]');
-    if (labelCarrier) labelCarrier.textContent = escapeHtml(carrier);
-
-    const labelGuide = document.querySelector('[data-order-guide]');
-    if (labelGuide) labelGuide.textContent = escapeHtml(guide);
+    renderOrderPackages({
+      shipments: orderShipments,
+      shipmentReadState,
+      shipmentBlock: document.querySelector('[data-order-shipment-block]'),
+      shipmentLabel: document.querySelector('[data-order-shipment]'),
+      carrierRow: document.querySelector('[data-order-carrier-row]'),
+      guideRow: document.querySelector('[data-order-guide-row]')
+    });
 
     const itemsBox = document.querySelector('[data-order-items]');
     if (itemsBox) {
