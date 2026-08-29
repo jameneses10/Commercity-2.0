@@ -46,7 +46,23 @@ function orderDateKey(value) {
 }
 function orderStores(o) { return Array.isArray(o?.tiendas) ? o.tiendas : []; }
 
-function orderCard(o){
+function shipmentStatusLabel(value) {
+  const status=safe(value).toLowerCase();
+  const labels={ pendiente:'Pendiente', preparado:'Preparado', en_camino:'En camino', entregado:'Entregado', cancelado:'Cancelado' };
+  return labels[status] || capitalize(status.replaceAll('_',' '));
+}
+
+function groupShipmentsByOrder(shipments) {
+  const byOrder=new Map();
+  shipments.forEach(shipment=>{
+    const key=String(shipment?.pedido_id ?? '');
+    if(!key) return;
+    if(!byOrder.has(key)) byOrder.set(key,[]);
+    byOrder.get(key).push(shipment);
+  });
+  return byOrder;
+}
+function orderCard(o, shipmentsByOrder = new Map(), shipmentReadState = 'ok'){
   const id=o.id || o.numero || o.codigo || 'pendiente';
   const payStatus=paymentStatus(o);
   const genStatus=generalStatus(o);
@@ -54,7 +70,24 @@ function orderCard(o){
   const dateKey=orderDateKey(date);
   const storeIds=orderStores(o).map(store=>safe(store?.id).trim()).filter(Boolean);
   const total=o.total || o.total_pagado || 0;
-  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-order-date="${escHtml(dateKey)}" data-order-store-ids="${escHtml(storeIds.join(','))}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p></div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
+  
+  let shipmentHtml = '';
+  if (storeIds.length > 1) {
+    if (shipmentReadState !== 'ok') {
+      shipmentHtml = `<div class="mt-3"><p class="cc-muted text-sm font-bold">Estado de envíos no disponible.</p></div>`;
+    } else {
+      const shipments = shipmentsByOrder.get(String(id)) || [];
+      if (shipments.length === 0) {
+        shipmentHtml = `<div class="mt-3"><p class="cc-muted text-sm font-bold">Los envíos aún no han sido generados.</p></div>`;
+      } else {
+        const rows = shipments.map(s => `<li class="text-sm"><span class="font-bold">${escHtml(safe(s.tienda_nombre))}</span> — <span class="cc-muted">${escHtml(shipmentStatusLabel(s.estado))}</span></li>`).join('');
+        const warning = shipments.length < storeIds.length ? `<p class="cc-muted text-sm mt-1">Algunos envíos aún no han sido generados.</p>` : '';
+        shipmentHtml = `<div class="mt-3"><ul class="cc-info-list space-y-1">${rows}</ul>${warning}</div>`;
+      }
+    }
+  }
+
+  return `<article class="cc-card cc-order-card" data-payment-status="${escHtml(payStatus)}" data-general-status="${escHtml(genStatus)}" data-order-date="${escHtml(dateKey)}" data-order-store-ids="${escHtml(storeIds.join(','))}" data-filter-text="${escHtml(safe(id))} ${escHtml(genStatus)}"><div><span class="cc-chip ${genStatus==='cancelado'?'dark':genStatus==='completado'?'blue':'orange'}">${escHtml(capitalize(genStatus))}</span><h2 class="text-2xl font-bold mt-3">Pedido #${escHtml(safe(id))}</h2><p class="cc-muted">${date ? new Date(date).toLocaleDateString('es-CO') : 'Fecha no disponible'} · Estado del pago: ${escHtml(capitalize(payStatus))}</p><p class="cc-muted">${escHtml(safe(o.resumen || o.tienda_nombre || 'Resumen disponible en detalle.'))}</p>${shipmentHtml}</div><div class="cc-order-meta"><b>${money(total)}</b><a class="cc-btn outline" href="pedido-detalle.html?id=${encodeURIComponent(safe(id))}">Ver detalle</a><a class="cc-btn secondary" href="chat.html">Contactar</a><a class="cc-btn" href="devoluciones.html">Devolución</a></div></article>`;
 }
 
 function populateOrderStoreFilter(orders){
@@ -127,8 +160,22 @@ async function initOrders(){
   try{
     const data=await api.get('/orders/my-orders');
     const orders=data?.data?.orders || data?.orders || [];
+    
+    let shipmentsByOrder = new Map();
+    let shipmentReadState = 'ok';
+    if (orders.length > 0) {
+      try {
+        const shipData = await api.get('/shipments/my-shipments');
+        const shipments = shipData?.data?.shipments || shipData?.shipments || [];
+        shipmentsByOrder = groupShipmentsByOrder(Array.isArray(shipments) ? shipments : []);
+      } catch (error) {
+        shipmentReadState = 'unavailable';
+        console.error('Shipment fetch failed:', error);
+      }
+    }
+    
     populateOrderStoreFilter(orders);
-    box.innerHTML=orders.length ? orders.map(orderCard).join('') : empty('cc-order-history.svg','Aún no tienes pedidos.','Cuando compres en CommerCity, tus pedidos reales aparecerán aquí.','<a class="cc-btn" href="productos.html">Explorar productos</a>');
+    box.innerHTML=orders.length ? orders.map(order => orderCard(order, shipmentsByOrder, shipmentReadState)).join('') : empty('cc-order-history.svg','Aún no tienes pedidos.','Cuando compres en CommerCity, tus pedidos reales aparecerán aquí.','<a class="cc-btn" href="productos.html">Explorar productos</a>');
   }catch(error){
     box.innerHTML=empty('cc-order-history.svg','No pudimos cargar pedidos.','La API respondió: '+escHtml(safe(error?.message, 'Error desconocido')),'<a class="cc-btn" href="productos.html">Seguir comprando</a>');
   }
