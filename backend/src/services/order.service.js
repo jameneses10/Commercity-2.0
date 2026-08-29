@@ -12,7 +12,7 @@ async function createOrder(user,{direccion_id,items}){
  const conn=await pool.getConnection();
  try{ await conn.beginTransaction();
   const id=await orderModel.createWithDetails(conn,{comprador_id:user.id,direccion_id,total:cart.total,items:cart.valid_items});
-  await logService.log(conn,{usuario_id:user.id,accion:'pedido_creado',entidad:'pedidos',entidad_id:id,detalle:{total:cart.total,items:cart.valid_items.length}});
+  await logService.log(conn,{usuario_id:user.id,accion:'pedido_creado',entidad:'pedidos',entidad_id:id,detalle:{total:cart.total,items:cart.valid_items.length,estado_pago:'pendiente',estado_general:'creado'}});
   await conn.commit();
   return getOrderForUser(id,user);
  }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
