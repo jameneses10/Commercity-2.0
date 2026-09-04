@@ -2,6 +2,7 @@ const crypto=require('crypto');
 const { pool }=require('../config/database');
 const orderModel=require('../models/order.model');
 const paymentModel=require('../models/payment.model');
+const comprobanteModel=require('../models/comprobante.model');
 const commissionService=require('./commission.service');
 const shipmentModel=require('../models/shipment.model');
 const notificationService=require('./notification.service');
@@ -24,7 +25,8 @@ async function processPayment(user,{pedido_id,card_number}){
   const details=await orderModel.getDetailsConn(conn,pedido_id);
   const requiredByProduct=buildRequiredQuantityByProduct(details);
   for(const d of details){ const [rows]=await conn.query(`SELECT p.id,p.stock,p.estado,${EFFECTIVE_PRICE_EXPR} AS precio_final FROM productos p WHERE p.id=? FOR UPDATE`,[d.producto_id]); const p=rows[0]; if(!p||p.estado!=='activo') throw err('Producto no disponible para pago.',409); if(Number(p.stock)<requiredByProduct.get(Number(d.producto_id))) throw err('Stock insuficiente al pagar.',409); ensureCurrentPrice(d,p); }
-  await paymentModel.create(conn,{pedido_id,metodo:'sandbox_card',referencia:reference('APR'),estado:'aprobado',mensaje:'Pago sandbox aprobado.'});
+  const pagoId=await paymentModel.create(conn,{pedido_id,metodo:'sandbox_card',referencia:reference('APR'),estado:'aprobado',mensaje:'Pago sandbox aprobado.'});
+  await comprobanteModel.create(conn,{pedido_id,pago_id:pagoId,numero:reference('COMP')});
   await orderModel.updateStatus(conn,pedido_id,{estado_pago:'pagado',estado_general:'procesando'});
   for(const d of details){ await conn.query(`UPDATE productos SET estado=CASE WHEN stock = ? THEN 'agotado' ELSE estado END, stock=stock-? WHERE id=?`,[d.cantidad,d.cantidad,d.producto_id]); const [[prod]]=await conn.query('SELECT p.stock,p.tienda_id,t.usuario_id vendedor_id,p.nombre FROM productos p INNER JOIN tiendas t ON t.id=p.tienda_id WHERE p.id=?',[d.producto_id]); if(prod&&Number(prod.stock)===0) await notificationService.create(conn,prod.vendedor_id,{tipo:'producto_agotado',titulo:'Producto agotado',mensaje:`El producto ${prod.nombre} quedó sin stock.`}); }
   await commissionService.createCommissions(conn,pedido_id,details);
@@ -44,7 +46,7 @@ async function webhookAdmin(user,{pedido_id,approved}){
   const details=await orderModel.getDetailsConn(conn,pedido_id);
   const requiredByProduct=buildRequiredQuantityByProduct(details);
   for(const d of details){ const [rows]=await conn.query(`SELECT p.id,p.stock,p.estado,${EFFECTIVE_PRICE_EXPR} AS precio_final FROM productos p WHERE p.id=? FOR UPDATE`,[d.producto_id]); const p=rows[0]; if(!p||p.estado!=='activo'||Number(p.stock)<requiredByProduct.get(Number(d.producto_id))) throw err('Producto no disponible para webhook.',409); ensureCurrentPrice(d,p); }
-  await paymentModel.create(conn,{pedido_id,metodo:'sandbox_webhook',referencia:reference('WH-APR'),estado:'aprobado',mensaje:'Webhook sandbox aprobado.'}); await orderModel.updateStatus(conn,pedido_id,{estado_pago:'pagado',estado_general:'procesando'});
+  const pagoId=await paymentModel.create(conn,{pedido_id,metodo:'sandbox_webhook',referencia:reference('WH-APR'),estado:'aprobado',mensaje:'Webhook sandbox aprobado.'}); await comprobanteModel.create(conn,{pedido_id,pago_id:pagoId,numero:reference('COMP')}); await orderModel.updateStatus(conn,pedido_id,{estado_pago:'pagado',estado_general:'procesando'});
   for(const d of details){ await conn.query(`UPDATE productos SET estado=CASE WHEN stock = ? THEN 'agotado' ELSE estado END, stock=stock-? WHERE id=?`,[d.cantidad,d.cantidad,d.producto_id]); }
   await commissionService.createCommissions(conn,pedido_id,details); await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',estado_pago:'pagado',estado_general:'procesando'}}); await conn.commit(); return {estado:'aprobado'};
  }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
