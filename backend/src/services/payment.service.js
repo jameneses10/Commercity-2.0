@@ -3,6 +3,7 @@ const { pool }=require('../config/database');
 const orderModel=require('../models/order.model');
 const paymentModel=require('../models/payment.model');
 const comprobanteModel=require('../models/comprobante.model');
+const sandboxGatewayService=require('./sandboxGateway.service');
 const commissionService=require('./commission.service');
 const shipmentModel=require('../models/shipment.model');
 const notificationService=require('./notification.service');
@@ -14,7 +15,8 @@ function ensureCurrentPrice(detail,product){if(toCents(detail.precio_unitario)!=
 function buildRequiredQuantityByProduct(details){const required=new Map(); for(const d of details){const productId=Number(d.producto_id); const quantity=Number(d.cantidad); required.set(productId,(required.get(productId)??0)+quantity);} return required;}
 function reference(prefix){return `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`}
 async function processPayment(user,{pedido_id,card_number}){
- const approved=card_number==='4111111111111111'; const rejected=card_number==='4000000000000002'||!approved;
+ const gatewayResponse=await sandboxGatewayService.sendTransaction({card_number});
+ const {approved,rejected}=gatewayResponse;
  const conn=await pool.getConnection();
  try{ await conn.beginTransaction();
   const order=await orderModel.lockOrder(conn,pedido_id); if(!order) throw err('Pedido no encontrado.',404);
