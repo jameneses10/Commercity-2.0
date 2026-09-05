@@ -4,6 +4,7 @@ const orderModel=require('../models/order.model');
 const paymentModel=require('../models/payment.model');
 const comprobanteModel=require('../models/comprobante.model');
 const sandboxGatewayService=require('./sandboxGateway.service');
+const sandboxWebhookService=require('./sandboxWebhook.service');
 const commissionService=require('./commission.service');
 const shipmentModel=require('../models/shipment.model');
 const notificationService=require('./notification.service');
@@ -37,7 +38,8 @@ async function processPayment(user,{pedido_id,card_number}){
   const [sellerRows]=await conn.query(`SELECT DISTINCT t.usuario_id vendedor_id FROM pedido_detalles d INNER JOIN tiendas t ON t.id=d.tienda_id WHERE d.pedido_id=?`,[pedido_id]);
   for(const s of sellerRows){ await notificationService.create(conn,s.vendedor_id,{tipo:'nuevo_pedido',titulo:'Nuevo pedido recibido',mensaje:`Tienes un nuevo pedido pagado: ${pedido_id}.`}); }
   await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',estado_pago:'pagado',estado_general:'procesando',createdShipments}});
-  await conn.commit(); return {estado:'aprobado',mensaje:'Pago sandbox aprobado.',envios_creados:createdShipments};
+  const webhook=sandboxWebhookService.executePaymentApprovedWebhook({pedido_id,pago_id:pagoId,estado:'aprobado'});
+  await conn.commit(); return {estado:'aprobado',mensaje:'Pago sandbox aprobado.',envios_creados:createdShipments,webhook};
  }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
 }
 async function webhookAdmin(user,{pedido_id,approved}){
