@@ -40,7 +40,7 @@ async function processPayment(user,{pedido_id,card_number}){
   await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',estado_pago:'pagado',estado_general:'procesando',createdShipments}});
   const webhook=sandboxWebhookService.executePaymentApprovedWebhook({pedido_id,pago_id:pagoId,estado:'aprobado'});
   await conn.commit(); return {estado:'aprobado',mensaje:'Pago sandbox aprobado.',envios_creados:createdShipments,webhook};
- }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
+ }catch(e){ await conn.rollback(); try{ await logService.log(null,{usuario_id:user.id,accion:'pago_intento_fallido',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',decision_result:approved?'aprobado':'rechazado',resultado:'fallido',codigo:e.statusCode,motivo:e.message}}); }catch(auditErr){} throw e; } finally{conn.release();}
 }
 async function webhookAdmin(user,{pedido_id,approved}){
  const conn=await pool.getConnection();
@@ -53,6 +53,6 @@ async function webhookAdmin(user,{pedido_id,approved}){
   const pagoId=await paymentModel.create(conn,{pedido_id,metodo:'sandbox_webhook',referencia:reference('WH-APR'),estado:'aprobado',mensaje:'Webhook sandbox aprobado.'}); await comprobanteModel.create(conn,{pedido_id,pago_id:pagoId,numero:reference('COMP')}); await orderModel.updateStatus(conn,pedido_id,{estado_pago:'pagado',estado_general:'procesando'});
   for(const d of details){ await conn.query(`UPDATE productos SET estado=CASE WHEN stock = ? THEN 'agotado' ELSE estado END, stock=stock-? WHERE id=?`,[d.cantidad,d.cantidad,d.producto_id]); }
   await commissionService.createCommissions(conn,pedido_id,details); await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',estado_pago:'pagado',estado_general:'procesando'}}); await conn.commit(); return {estado:'aprobado'};
- }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
+ }catch(e){ await conn.rollback(); try{ await logService.log(null,{usuario_id:user.id,accion:'pago_intento_fallido',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',decision_result:approved?'aprobado':'rechazado',resultado:'fallido',codigo:e.statusCode,motivo:e.message}}); }catch(auditErr){} throw e; } finally{conn.release();}
 }
 module.exports={processPayment,webhookAdmin};
