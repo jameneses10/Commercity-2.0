@@ -2,6 +2,7 @@ const { pool } = require('../config/database');
 const cartService=require('./cart.service');
 const addressService=require('./address.service');
 const orderModel=require('../models/order.model');
+const comprobanteModel=require('../models/comprobante.model');
 const logService=require('./log.service');
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 async function createOrder(user,{direccion_id,items}){
@@ -27,4 +28,10 @@ async function getOrderForUser(id,user){
 async function myOrders(user){return orderModel.listBuyer(user.id)}
 async function sellerOrders(user){return orderModel.listSeller(user.id)}
 async function adminOrders(){return orderModel.listAll()}
-module.exports={createOrder,getOrderForUser,myOrders,sellerOrders,adminOrders};
+async function getComprobanteForUser(id,user){
+ await getOrderForUser(id,user);
+ const comprobante=await comprobanteModel.findDetailByPedidoId(id);
+ if(!comprobante) throw err('Comprobante no disponible para este pedido.',404);
+ return comprobante;
+}
+module.exports={createOrder,getOrderForUser,myOrders,sellerOrders,adminOrders,getComprobanteForUser};

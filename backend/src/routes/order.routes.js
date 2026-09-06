@@ -1,5 +1,5 @@
 const express=require('express'); const controller=require('../controllers/order.controller'); const authRequired=require('../middlewares/authRequired'); const requireRole=require('../middlewares/requireRole'); const {createOrderValidator}=require('../validators/order.validators');
-const orderRouter=express.Router(); orderRouter.post('/',authRequired,requireRole('comprador'),createOrderValidator,controller.create); orderRouter.get('/my-orders',authRequired,requireRole('comprador'),controller.myOrders); orderRouter.get('/:id',authRequired,controller.getById);
+const orderRouter=express.Router(); orderRouter.post('/',authRequired,requireRole('comprador'),createOrderValidator,controller.create); orderRouter.get('/my-orders',authRequired,requireRole('comprador'),controller.myOrders); orderRouter.get('/:id/comprobante',authRequired,requireRole('comprador'),controller.getComprobante); orderRouter.get('/:id',authRequired,controller.getById);
 const sellerOrderRouter=express.Router(); sellerOrderRouter.get('/orders',authRequired,requireRole('vendedor'),controller.sellerOrders);
 const adminOrderRouter=express.Router(); adminOrderRouter.get('/orders',authRequired,requireRole('administrador'),controller.adminOrders);
 module.exports={orderRouter,sellerOrderRouter,adminOrderRouter};

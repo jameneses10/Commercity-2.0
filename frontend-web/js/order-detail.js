@@ -68,6 +68,123 @@ function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, ship
   shipmentBlock.append(packageList);
 }
 
+function sanitizeFilenamePart(value) {
+  return String(value ?? '').replace(/[^A-Za-z0-9._-]/g, '');
+}
+
+function buildComprobanteDownloadHtml(comprobante) {
+  const fechaStr = comprobante.fecha ? new Date(comprobante.fecha).toLocaleString('es-CO') : 'No disponible';
+  const productos = Array.isArray(comprobante.productos) ? comprobante.productos : [];
+  const rows = productos.map(p => `
+    <tr>
+      <td>${escapeHtml(p.nombre)}</td>
+      <td style="text-align:center">${escapeHtml(String(p.cantidad))}</td>
+      <td style="text-align:right">${escapeHtml(money(p.precio_unitario))}</td>
+      <td style="text-align:right">${escapeHtml(money(p.subtotal))}</td>
+    </tr>`).join('');
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Comprobante ${escapeHtml(comprobante.numero)}</title>
+<style>
+body{font-family:Arial,sans-serif;color:#1e293b;padding:24px;max-width:640px;margin:0 auto}
+h1{color:#fa8000;font-size:20px}
+table{width:100%;border-collapse:collapse;margin-top:16px}
+th,td{padding:8px;border-bottom:1px solid #e2e8f0;font-size:13px}
+th{text-align:left;color:#64748b;text-transform:uppercase;font-size:11px}
+.cc-total{font-size:18px;font-weight:bold;color:#fa8000;text-align:right;margin-top:12px}
+</style>
+</head>
+<body>
+<h1>CommerCity &mdash; Comprobante de compra</h1>
+<p><b>N&uacute;mero:</b> ${escapeHtml(comprobante.numero)}</p>
+<p><b>Fecha:</b> ${escapeHtml(fechaStr)}</p>
+<p><b>Comprador:</b> ${escapeHtml(comprobante.comprador && comprobante.comprador.nombre)}</p>
+<p><b>Estado del pago:</b> ${escapeHtml(comprobante.estado_pago)}</p>
+<table>
+<thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<p class="cc-total">Total: ${escapeHtml(money(comprobante.total))}</p>
+</body>
+</html>`;
+}
+
+function downloadComprobante(comprobante) {
+  const html = buildComprobanteDownloadHtml(comprobante);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const safeNumero = sanitizeFilenamePart(comprobante.numero) || 'comprobante';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `comprobante-${safeNumero}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function renderReceipt(comprobante) {
+  const section = document.querySelector('[data-receipt-section]');
+  const unavailable = document.querySelector('[data-receipt-unavailable]');
+  if (!section) return;
+  if (unavailable) unavailable.classList.add('hidden');
+
+  const numeroEl = document.querySelector('[data-receipt-numero]');
+  if (numeroEl) numeroEl.textContent = comprobante.numero || '';
+
+  const fechaEl = document.querySelector('[data-receipt-fecha]');
+  if (fechaEl) fechaEl.textContent = comprobante.fecha ? new Date(comprobante.fecha).toLocaleString('es-CO') : 'No disponible';
+
+  const compradorEl = document.querySelector('[data-receipt-comprador]');
+  if (compradorEl) compradorEl.textContent = (comprobante.comprador && comprobante.comprador.nombre) || 'No disponible';
+
+  const estadoEl = document.querySelector('[data-receipt-estado-pago]');
+  if (estadoEl) estadoEl.textContent = capitalize(comprobante.estado_pago || '');
+
+  const itemsEl = document.querySelector('[data-receipt-items]');
+  if (itemsEl) {
+    const productos = Array.isArray(comprobante.productos) ? comprobante.productos : [];
+    itemsEl.innerHTML = productos.map(p => `
+      <tr>
+        <td class="py-3 px-2">${escapeHtml(p.nombre)}</td>
+        <td class="py-3 px-2 text-center">${escapeHtml(String(p.cantidad))}</td>
+        <td class="py-3 px-2 text-right">${money(p.precio_unitario)}</td>
+        <td class="py-3 px-2 text-right font-bold text-[#fa8000]">${money(p.subtotal)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const totalEl = document.querySelector('[data-receipt-total]');
+  if (totalEl) totalEl.textContent = money(comprobante.total || 0);
+
+  section.classList.remove('hidden');
+
+  const downloadBtn = document.querySelector('[data-receipt-download]');
+  if (downloadBtn) downloadBtn.onclick = () => downloadComprobante(comprobante);
+}
+
+async function loadReceipt(id) {
+  const unavailable = document.querySelector('[data-receipt-unavailable]');
+  try {
+    const data = await api.get(`/orders/${id}/comprobante`);
+    const comprobante = (data && data.data && data.data.comprobante) || (data && data.comprobante);
+    if (!comprobante) return;
+    renderReceipt(comprobante);
+  } catch (error) {
+    if (error && error.status === 404) {
+      if (unavailable) unavailable.classList.remove('hidden');
+    } else {
+      console.error('Error al cargar comprobante:', error);
+      if (unavailable) {
+        unavailable.textContent = 'No fue posible cargar el comprobante.';
+        unavailable.classList.remove('hidden');
+      }
+    }
+  }
+}
+
 async function initOrderDetail() {
   const loading = document.getElementById('orderDetailLoading');
   const errorBox = document.getElementById('orderDetailError');
@@ -192,6 +309,8 @@ async function initOrderDetail() {
 
     if (loading) loading.classList.add('hidden');
     if (contentBox) contentBox.classList.remove('hidden');
+
+    await loadReceipt(id);
 
   } catch (error) {
     if (error.statusCode === 403 || error.status === 403 || (error.message && error.message.includes('403'))) {
