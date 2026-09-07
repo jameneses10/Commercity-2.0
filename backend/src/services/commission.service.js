@@ -1,5 +1,6 @@
 const commissionModel=require('../models/commission.model');
 const platformSettingsModel=require('../models/platformSettings.model');
+const liquidationModel=require('../models/liquidation.model');
 async function createCommissions(conn,pedidoId,details){
  const rate=await platformSettingsModel.getCommissionRate(conn);
  const grouped={};
@@ -8,6 +9,9 @@ async function createCommissions(conn,pedidoId,details){
   const valor_comision=Number((subtotal*(rate/100)).toFixed(2));
   const valor_vendedor=Number((subtotal-valor_comision).toFixed(2));
   await commissionModel.create(conn,{pedido_id:pedidoId,tienda_id:Number(tienda_id),subtotal_tienda:subtotal,porcentaje_comision:rate,valor_comision,valor_vendedor});
+  const [[commissionRow]]=await conn.query('SELECT id FROM comisiones WHERE pedido_id=? AND tienda_id=? LIMIT 1',[pedidoId,Number(tienda_id)]);
+  if(!commissionRow){ const e=new Error('No fue posible obtener la comisión creada.'); e.statusCode=500; throw e; }
+  await liquidationModel.createForCommission(conn,{comision_id:commissionRow.id,valor_liquidado:valor_vendedor});
  }
 }
 module.exports={createCommissions};
