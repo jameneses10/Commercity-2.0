@@ -10,4 +10,6 @@ async function adminShipments(req,res,next){try{res.json(successResponse('Envío
 async function adminReviews(req,res,next){try{res.json(successResponse('Reseñas administrativas obtenidas correctamente.',await service.adminReviews(req.query)));}catch(e){next(e)}}
 async function adminCommissions(req,res,next){try{res.json(successResponse('Comisiones administrativas obtenidas correctamente.',await service.adminCommissions(req.query)));}catch(e){next(e)}}
 async function updateCommissionStatus(req,res,next){try{res.json(successResponse('Estado de comisión actualizado correctamente.',{commission:await service.updateCommissionStatus(req.user,req.params.id,req.body,req.ip)}));}catch(e){next(e)}}
-module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,updateCommissionStatus};
+async function adminCommissionSettings(req,res,next){try{res.json(successResponse('Configuración de comisión obtenida correctamente.',{settings:await service.adminCommissionSettings()}));}catch(e){next(e)}}
+async function updateAdminCommissionSettings(req,res,next){try{res.json(successResponse('Configuración de comisión actualizada correctamente.',{settings:await service.updateAdminCommissionSettings(req.user,req.body,req.ip)}));}catch(e){next(e)}}
+module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,updateCommissionStatus,adminCommissionSettings,updateAdminCommissionSettings};

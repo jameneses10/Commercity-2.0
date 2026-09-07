@@ -8,6 +8,8 @@ router.get('/stores', controller.adminStores);
 router.get('/payments', controller.adminPayments);
 router.get('/shipments', controller.adminShipments);
 router.get('/reviews', controller.adminReviews);
+router.get('/settings/commission', controller.adminCommissionSettings);
+router.patch('/settings/commission', controller.updateAdminCommissionSettings);
 router.get('/commissions', controller.adminCommissions);
 router.patch('/commissions/:id/status', controller.updateCommissionStatus);
 module.exports = router;
