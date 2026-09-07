@@ -120,8 +120,14 @@ async function adminReviews({ limit=50, page=1 }) {
   );
   return { reviews, pagination:{page,limit} };
 }
-async function adminCommissions({ limit=50, page=1 }) {
+async function adminCommissions({ limit=50, page=1, pedido_id, vendedor_id, fecha_desde, fecha_hasta_exclusiva }) {
   limit=Math.min(Math.max(parseInt(limit,10)||50,1),100); page=Math.max(parseInt(page,10)||1,1);
+  const where=[]; const params=[];
+  if (pedido_id!==undefined) { where.push('c.pedido_id = ?'); params.push(pedido_id); }
+  if (vendedor_id!==undefined) { where.push('u.id = ?'); params.push(vendedor_id); }
+  if (fecha_desde!==undefined) { where.push('c.created_at >= ?'); params.push(`${fecha_desde} 00:00:00`); }
+  if (fecha_hasta_exclusiva!==undefined) { where.push('c.created_at < ?'); params.push(`${fecha_hasta_exclusiva} 00:00:00`); }
+  params.push(limit, (page-1)*limit);
   const [commissions] = await pool.query(
     `SELECT c.id, c.pedido_id, c.tienda_id, t.nombre AS tienda_nombre, u.id AS vendedor_id,
             u.nombre AS vendedor_nombre, c.subtotal_tienda AS valor_venta, c.porcentaje_comision,
@@ -131,7 +137,8 @@ async function adminCommissions({ limit=50, page=1 }) {
        INNER JOIN tiendas t ON t.id = c.tienda_id
        INNER JOIN usuarios u ON u.id = t.usuario_id
        INNER JOIN pedidos p ON p.id = c.pedido_id
-      ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, [limit,(page-1)*limit]
+      ${where.length ? 'WHERE '+where.join(' AND ') : ''}
+      ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, params
   );
   return { commissions, pagination:{page,limit} };
 }

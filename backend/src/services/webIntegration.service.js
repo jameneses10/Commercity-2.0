@@ -10,6 +10,31 @@ function normalizePercentage(value){
   }
   return Math.round(n*100)/100;
 }
+function normalizePositiveIntFilter(value, fieldLabel){
+  if(value===undefined) return undefined;
+  const n=Number(value);
+  if(value===null || (typeof value==='string' && value.trim()==='') || !Number.isInteger(n) || n<1){
+    const e=new Error(`${fieldLabel} inválido.`); e.statusCode=400; throw e;
+  }
+  return n;
+}
+function normalizeDateOnly(value, fieldLabel){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)){ const e=new Error(`${fieldLabel} inválida.`); e.statusCode=400; throw e; }
+  const d=new Date(`${value}T00:00:00Z`);
+  if(Number.isNaN(d.getTime()) || d.toISOString().slice(0,10)!==value){ const e=new Error(`${fieldLabel} inválida.`); e.statusCode=400; throw e; }
+  return value;
+}
+function normalizeAdminCommissionFilters(query){
+  const pedido_id = normalizePositiveIntFilter(query.pedido_id, 'pedido_id');
+  const vendedor_id = normalizePositiveIntFilter(query.vendedor_id, 'vendedor_id');
+  const fecha_desde = normalizeDateOnly(query.fecha_desde, 'fecha_desde');
+  const fecha_hasta = normalizeDateOnly(query.fecha_hasta, 'fecha_hasta');
+  if(fecha_desde && fecha_hasta && fecha_desde > fecha_hasta){ const e=new Error('fecha_desde no puede ser posterior a fecha_hasta.'); e.statusCode=400; throw e; }
+  let fecha_hasta_exclusiva;
+  if(fecha_hasta){ const d=new Date(`${fecha_hasta}T00:00:00Z`); d.setUTCDate(d.getUTCDate()+1); fecha_hasta_exclusiva=d.toISOString().slice(0,10); }
+  return { pedido_id, vendedor_id, fecha_desde, fecha_hasta_exclusiva };
+}
 async function sellerProducts(user){ return model.sellerProducts(user.id); }
 async function sellerReviews(user){ return model.sellerReviews(user.id); }
 async function sellerReputation(user){ return model.sellerReputation(user.id); }
@@ -18,7 +43,10 @@ async function adminStores(query){ return model.adminStores(query); }
 async function adminPayments(query){ return model.adminPayments(query); }
 async function adminShipments(query){ return model.adminShipments(query); }
 async function adminReviews(query){ return model.adminReviews(query); }
-async function adminCommissions(query){ return model.adminCommissions(query); }
+async function adminCommissions(query){
+  const filters = normalizeAdminCommissionFilters(query);
+  return model.adminCommissions({ limit: query.limit, page: query.page, ...filters });
+}
 async function updateCommissionStatus(admin, commissionId, body, ip){
   const updated = await model.updateCommissionStatus(id(commissionId), body.estado);
   await logService.log(null,{usuario_id:admin.id,accion:'comision_estado_actualizado',entidad:'comisiones',entidad_id:updated.id,detalle:{estado:body.estado},ip});
