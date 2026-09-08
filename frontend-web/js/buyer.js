@@ -182,6 +182,9 @@ async function initOrders(){
   bindOrderFilters();
 }
 
+let currentAddresses=[];
+let editingAddressId=null;
+
 function addressCard(a){
   const id=a.id || a.direccion_id;
   return `<article class="cc-card cc-address-card" data-address-id="${escHtml(safe(id))}"><span class="cc-chip ${a.es_principal?'orange':'blue'}">${a.es_principal?'Principal':'Alterna'}</span><h2 class="text-2xl font-bold mt-3">${escHtml(safe(a.nombre_destinatario || a.alias || 'Dirección'))}</h2><p class="cc-muted">${escHtml(safe(a.departamento))}, ${escHtml(safe(a.ciudad))} · ${escHtml(safe(a.direccion))}</p><p><b>Teléfono:</b> ${escHtml(safe(a.telefono))}</p><p class="cc-muted">${escHtml(safe(a.barrio || a.codigo_postal || ''))} ${escHtml(safe(a.referencia || ''))}</p><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-edit-address="${escHtml(safe(id))}">Editar</button><button class="cc-btn secondary" type="button" data-delete-address="${escHtml(safe(id))}">Eliminar</button><button class="cc-btn" type="button" data-main-address="${escHtml(safe(id))}">Marcar como principal</button></div></article>`;
@@ -193,25 +196,64 @@ async function loadAddresses(){
   try{
     const data=await api.get('/addresses');
     const addresses=data?.data?.addresses || data?.addresses || data?.data || [];
-    box.innerHTML=Array.isArray(addresses) && addresses.length ? addresses.map(addressCard).join('') : empty('cc-address-location.svg','No tienes direcciones guardadas.','Crea tu primera dirección para usarla en pedidos reales.');
-  }catch(error){ box.innerHTML=empty('cc-address-location.svg','No pudimos cargar direcciones.',escHtml(safe(error?.message, 'Error desconocido'))); }
+    currentAddresses=Array.isArray(addresses) ? addresses : [];
+    box.innerHTML=currentAddresses.length ? currentAddresses.map(addressCard).join('') : empty('cc-address-location.svg','No tienes direcciones guardadas.','Crea tu primera dirección para usarla en pedidos reales.');
+  }catch(error){ currentAddresses=[]; box.innerHTML=empty('cc-address-location.svg','No pudimos cargar direcciones.',escHtml(safe(error?.message, 'Error desconocido'))); }
+}
+
+function enterAddressEditMode(address,form,submitBtn){
+  editingAddressId=address.id ?? address.direccion_id;
+  if(form.elements.departamento) form.elements.departamento.value=address.departamento || '';
+  if(form.elements.ciudad) form.elements.ciudad.value=address.ciudad || '';
+  if(form.elements.direccion) form.elements.direccion.value=address.direccion || '';
+  if(form.elements.telefono) form.elements.telefono.value=address.telefono || '';
+  if(form.elements.barrio) form.elements.barrio.value=address.codigo_postal || '';
+  if(form.elements.es_principal) form.elements.es_principal.checked=!!address.es_principal;
+  if(submitBtn) submitBtn.textContent='Actualizar dirección';
+}
+
+function exitAddressEditMode(form,submitBtn){
+  editingAddressId=null;
+  form?.reset();
+  if(submitBtn) submitBtn.textContent='Guardar dirección';
 }
 
 async function initAddresses(){
   const user=await buyerSession(); if(!user) return;
   await loadAddresses();
   const form=document.querySelector('[data-address-form]');
+  const submitBtn=form?.querySelector('button[type="submit"]');
   form?.addEventListener('submit',async event=>{
     event.preventDefault();
     const raw=Object.fromEntries(new FormData(form));
     const body={departamento:raw.departamento, ciudad:raw.ciudad, direccion:raw.direccion, codigo_postal:raw.barrio || raw.codigo_postal || '', telefono:raw.telefono, es_principal:!!raw.es_principal};
     if(!body.departamento || !body.ciudad || !body.direccion || !body.telefono){ showMessage('#addressMsg','Completa departamento, ciudad, dirección y teléfono.'); return; }
-    try{ await api.post('/addresses',body); showMessage('#addressMsg','Dirección creada con la API real.',true); form.reset(); await loadAddresses(); }
-    catch(error){ showMessage('#addressMsg',error.message || 'No fue posible crear la dirección.'); }
+    try{
+      if(editingAddressId){
+        await api.patch(`/addresses/${editingAddressId}`,body);
+        showMessage('#addressMsg','Dirección actualizada correctamente.',true);
+        exitAddressEditMode(form,submitBtn);
+      }else{
+        await api.post('/addresses',body);
+        showMessage('#addressMsg','Dirección creada con la API real.',true);
+        form.reset();
+      }
+      await loadAddresses();
+    }catch(error){ showMessage('#addressMsg',error.message || (editingAddressId ? 'No fue posible actualizar la dirección.' : 'No fue posible crear la dirección.')); }
+  });
+  document.querySelectorAll('[data-scroll-target="addressForm"]').forEach(btn=>{
+    btn.addEventListener('click',()=>exitAddressEditMode(form,submitBtn));
   });
   document.addEventListener('click',async event=>{
+    const edit=event.target.closest('[data-edit-address]');
     const del=event.target.closest('[data-delete-address]');
     const main=event.target.closest('[data-main-address]');
+    if(edit){
+      const address=currentAddresses.find(a=>String(a.id ?? a.direccion_id)===String(edit.dataset.editAddress));
+      if(address){ enterAddressEditMode(address,form,submitBtn); form.scrollIntoView({behavior:'smooth',block:'start'}); }
+      else{ showMessage('#addressMsg','No pudimos encontrar esa dirección para editar.'); }
+      return;
+    }
     if(del){ try{ await api.delete(`/addresses/${del.dataset.deleteAddress}`); showMessage('#addressMsg','Dirección eliminada.',true); await loadAddresses(); }catch(error){ showMessage('#addressMsg',error.message); } }
     if(main){ try{ await api.patch(`/addresses/${main.dataset.mainAddress}`,{es_principal:true}); showMessage('#addressMsg','Dirección marcada como principal.',true); await loadAddresses(); }catch(error){ showMessage('#addressMsg',error.message); } }
   });
