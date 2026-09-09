@@ -23,6 +23,6 @@ const createValidator = [
   body('items.*.pedido_detalle_id').isInt({ min: 1 }).withMessage('Detalle de pedido inválido.'),
   body('items.*.cantidad').optional().isInt({ min: 1 }).withMessage('Cantidad inválida.'),
 ];
-const sellerStatusValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada']).withMessage('Estado no permitido.'), body('respuesta_vendedor').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.')];
+const sellerStatusValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada']).withMessage('Estado no permitido.'), body('respuesta_vendedor').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.'), body('respuesta_vendedor').custom((value, { req }) => { if (req.body.estado === 'en_revision' && !String(value || '').trim()) throw new Error('Debes indicar qué información adicional necesitas.'); return true; })];
 const adminResolveValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada','producto_recibido','reembolso_simulado','cerrada']).withMessage('Estado no permitido.'), body('respuesta_admin').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.')];
 module.exports = { idParam, createValidator, sellerStatusValidator, adminResolveValidator };

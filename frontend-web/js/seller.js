@@ -13,6 +13,7 @@ const page = rawPage;
 const sellerPages = new Set(['vendedor.html','vendedor-tienda.html','vendedor-productos.html','vendedor-producto-form.html','vendedor-pedidos.html','vendedor-envios.html','vendedor-devoluciones.html','vendedor-resenas.html','vendedor-reputacion.html','vendedor-ganancias.html','vendedor-configuracion.html']);
 const RETURN_STATUS_LABELS = { solicitada:'Solicitada', en_revision:'En revisión', aprobada:'Aprobada', rechazada:'Rechazada', producto_recibido:'Producto recibido', reembolso_simulado:'Reembolso simulado', cerrada:'Cerrada' };
 function returnStatusLabel(estado){ return RETURN_STATUS_LABELS[estado] || 'Estado no disponible'; }
+const RETURN_ACTIONABLE_STATES = new Set(['solicitada','en_revision']);
 
 function esc(value){ return String(value ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function icon(name, cls='cc-icon'){ return `<img class="${cls}" src="assets/icons/${name}" alt="">`; }
@@ -61,6 +62,7 @@ async function getEarnings(){ try{ return (await api.get('/seller/store/earnings
 async function getOrders(){ try{ return (await api.get('/seller/orders')).data.orders || []; }catch(error){ return { error }; } }
 async function getShipments(){ try{ return (await api.get('/seller/shipments')).data.shipments || []; }catch(error){ return { error }; } }
 async function getSellerReturns(){ try{ return (await api.get('/seller/returns')).data.returns || []; }catch(error){ return { error }; } }
+async function updateSellerReturn(id, payload){ return api.patch(`/seller/returns/${id}/status`, payload); }
 async function getProducts(store){
   try{ const d=(await api.get('/seller/products')).data; return d.products || d.items || []; }
   catch(error){
@@ -232,7 +234,11 @@ function shipmentCard(s){
 }
 function returnCard(r){
   const estado=r.estado || 'solicitada';
-  return `<article class="cc-card cc-order-card" data-seller-item="returns" data-status="${esc(estado)}"><div><span class="cc-chip orange">${esc(returnStatusLabel(estado))}</span><h2>Solicitud #${esc(r.numero_solicitud || '')}</h2><p class="cc-muted">Pedido: ${esc(r.pedido_id || 'pendiente')} · ${money(r.monto_estimado || 0)} · ${esc(r.creado_en ? new Date(r.creado_en).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'}) : 'Fecha no disponible')}</p><p class="cc-muted">${esc(r.motivo || 'Motivo no especificado')}</p></div></article>`;
+  const id=r.id;
+  const respuesta=r.respuesta_vendedor;
+  const respuestaBlock=(respuesta && String(respuesta).trim()) ? `<p class="cc-muted"><b>Tu respuesta:</b> ${esc(respuesta)}</p>` : '';
+  const actions=RETURN_ACTIONABLE_STATES.has(estado) ? `<div class="cc-card-actions-row"><button class="cc-btn" type="button" data-return-approve="${esc(id)}">Aprobar</button><button class="cc-btn outline" type="button" data-return-reject="${esc(id)}">Rechazar</button><button class="cc-btn secondary" type="button" data-return-request-info="${esc(id)}">Solicitar información adicional</button></div><form class="cc-form mt-3" data-return-info-form="${esc(id)}" hidden><label class="cc-label">Información solicitada<textarea class="cc-input" name="respuesta_vendedor" maxlength="2000" required></textarea></label><div class="cc-card-actions-row"><button class="cc-btn" type="submit">Enviar solicitud</button><button class="cc-btn outline" type="button" data-return-info-cancel>Cancelar</button></div></form>` : '';
+  return `<article class="cc-card cc-order-card" data-seller-item="returns" data-status="${esc(estado)}" data-return-id="${esc(id)}"><div><span class="cc-chip orange">${esc(returnStatusLabel(estado))}</span><h2>Solicitud #${esc(r.numero_solicitud || '')}</h2><p class="cc-muted">Pedido: ${esc(r.pedido_id || 'pendiente')} · ${money(r.monto_estimado || 0)} · ${esc(r.creado_en ? new Date(r.creado_en).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'}) : 'Fecha no disponible')}</p><p class="cc-muted">${esc(r.motivo || 'Motivo no especificado')}</p>${respuestaBlock}</div>${actions}<div id="returnMsg-${esc(id)}" class="mt-3" aria-live="polite"></div></article>`;
 }
 function productRow(p){
   const id=productId(p);
@@ -349,7 +355,7 @@ async function productFormPage(){
 
 async function ordersPage(){ const orders=await getOrders(); const list=Array.isArray(orders)?orders:[]; main().innerHTML=pageShell('Pedidos recibidos','cc-order-history.svg','Operación','Pedidos reales asociados a la tienda.','<a class="cc-btn outline" href="vendedor-envios.html">Gestionar envíos</a>')+`<section class="cc-card mb-5"><div class="cc-module-filters" data-seller-filter-group="orders"><button class="cc-filter-pill active" data-filter="all" type="button">Todos</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagado" type="button">Pagados</button><button class="cc-filter-pill" data-filter="preparacion" type="button">En preparación</button><button class="cc-filter-pill" data-filter="enviado" type="button">Enviados</button><button class="cc-filter-pill" data-filter="entregado" type="button">Entregados</button><button class="cc-filter-pill" data-filter="cancelado" type="button">Cancelados</button></div></section><section class="cc-module-list">${list.length?list.map(orderCard).join(''):empty('cc-order-history.svg','Sin pedidos recibidos.','Cuando compradores realicen pedidos a tu tienda, aparecerán aquí.')}</section>`; bindFilters(main()); }
 async function shipmentsPage(){ const shipments=await getShipments(); const list=Array.isArray(shipments)?shipments:[]; main().innerHTML=pageShell('Gestión de envíos','cc-shipping-package.svg','Logística','Envíos reales del vendedor cuando existan.','<a class="cc-btn outline" href="vendedor-pedidos.html">Ver pedidos</a>')+`<section class="cc-card mb-5"><div class="cc-module-filters" data-seller-filter-group="shipments"><button class="cc-filter-pill active" data-filter="all" type="button">Todos</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendiente</button><button class="cc-filter-pill" data-filter="preparado" type="button">Preparado</button><button class="cc-filter-pill" data-filter="en_camino" type="button">En camino</button><button class="cc-filter-pill" data-filter="entregado" type="button">Entregado</button><button class="cc-filter-pill" data-filter="cancelado" type="button">Cancelado</button></div></section><section class="cc-grid cols-2">${list.length?list.map(shipmentCard).join(''):empty('cc-shipping-package.svg','Sin envíos reales.','Los envíos se crearán cuando existan pedidos despachables.')}</section>`; bindFilters(main()); }
-async function returnsPage(){ const returns=await getSellerReturns(); const list=Array.isArray(returns)?returns:[]; main().innerHTML=pageShell('Devoluciones','cc-return-request.svg','Posventa','Solicitudes de devolución reales relacionadas con productos de tu tienda.')+`<section class="cc-module-list" data-seller-returns-list>${list.length?list.map(returnCard).join(''):empty('cc-return-request.svg','Sin solicitudes de devolución.','Cuando un comprador solicite una devolución de tu tienda, aparecerá aquí.')}</section>`; }
+async function returnsPage(){ const returns=await getSellerReturns(); const list=Array.isArray(returns)?returns:[]; main().innerHTML=pageShell('Devoluciones','cc-return-request.svg','Posventa','Solicitudes de devolución reales relacionadas con productos de tu tienda.')+`<section class="cc-module-list" data-seller-returns-list>${list.length?list.map(returnCard).join(''):empty('cc-return-request.svg','Sin solicitudes de devolución.','Cuando un comprador solicite una devolución de tu tienda, aparecerá aquí.')}</section>`; const returnsList=document.querySelector('[data-seller-returns-list]'); if(returnsList) bindReturnActions(returnsList); }
 async function reviewsPage(){ const response=await api.get('/seller/reviews').catch(()=>({data:{reviews:[]}})); const reviews=response.data.reviews||[]; main().innerHTML=pageShell('Reseñas recibidas','cc-rating-star-review.svg','Opiniones','Reseñas reales de productos de tu tienda.','<a class="cc-btn outline" href="vendedor-reputacion.html">Ver reputación</a>')+`<section class="cc-card mb-5"><div class="cc-module-filters" data-seller-filter-group="reviews"><button class="cc-filter-pill active" data-filter="all" type="button">Todas</button><button class="cc-filter-pill" data-filter="positiva" type="button">Positivas</button><button class="cc-filter-pill" data-filter="media" type="button">Medias</button><button class="cc-filter-pill" data-filter="baja" type="button">Bajas</button></div></section><section class="cc-grid cols-2">${reviews.length?reviews.map(r=>{const n=Number(r.estrellas||r.calificacion||0); const st=n>=4?'positiva':n>=3?'media':'baja'; return `<article class="cc-card cc-review-card" data-seller-item="reviews" data-status="${st}"><span class="cc-chip blue">${esc(st)}</span><h2>${esc(r.producto_nombre||'Producto')}</h2><p class="cc-muted">Comprador: ${esc(r.comprador_nombre||'Comprador')}</p><p class="cc-stars">${'★'.repeat(Math.max(0,n))}${'☆'.repeat(Math.max(0,5-n))}</p><p>${esc(r.comentario||'Sin comentario')}</p></article>`}).join(''):empty('cc-rating-star-review.svg','Sin reseñas reales.','Cuando compradores califiquen tus productos, aparecerán aquí.')}</section>`; bindFilters(main()); }
 async function reputationPage(){ const store=await getStore(); const rep=store.error?{error:store.error}:await getReputation(store); const r=rep.reputation || rep.stats || rep; main().innerHTML=pageShell('Reputación de vendedor','cc-rating-star-review.svg','Confianza','Indicadores reales o calculados desde datos disponibles.','<a class="cc-btn outline" href="vendedor-resenas.html">Ver reseñas</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Nivel actual</b><strong>${esc(r.nivel||r.level||'Inicial')}</strong><span>Backend real</span></article><article class="cc-card cc-metric-card"><b>Calificación</b><strong>${esc(r.promedio_calificacion||r.rating||0)}</strong><span>Promedio</span></article><article class="cc-card cc-metric-card"><b>Reseñas</b><strong>${esc(r.total_resenas||r.total_reviews||0)}</strong><span>Opiniones</span></article><article class="cc-card cc-metric-card"><b>Cumplimiento</b><strong>${esc(r.cumplimiento_envios||r.fulfillment||0)}%</strong><span>Envíos</span></article></section><section class="cc-card mt-5"><h2 class="text-2xl font-bold">Estado de reputación</h2><p class="cc-muted">${esc(rep.error?.message || 'Reputación consultada desde endpoint de tienda.')}</p></section>`; }
 function sellerBalances(commissions){
@@ -443,6 +449,57 @@ function bindVisualActions(){
       controls.forEach(control=>{control.disabled=false;});
       showMessage(`#shipmentMsg-${id}`,error.message || 'No fue posible preparar el envío.');
       console.warn(error.message);
+    }
+  });
+}
+
+async function submitReturnAction(button, id, payload){
+  const card=button.closest('[data-return-id]');
+  const controls=card ? card.querySelectorAll('button') : [button];
+  controls.forEach(c=>{c.disabled=true;});
+  try{
+    await updateSellerReturn(id, payload);
+    await returnsPage();
+  }catch(error){
+    controls.forEach(c=>{c.disabled=false;});
+    showMessage(`#returnMsg-${id}`, error.message || 'No fue posible actualizar la solicitud.');
+  }
+}
+function bindReturnActions(container){
+  container.addEventListener('click', async e=>{
+    const approveBtn=e.target.closest('[data-return-approve]');
+    if(approveBtn){ await submitReturnAction(approveBtn, approveBtn.dataset.returnApprove, { estado:'aprobada' }); return; }
+    const rejectBtn=e.target.closest('[data-return-reject]');
+    if(rejectBtn){ await submitReturnAction(rejectBtn, rejectBtn.dataset.returnReject, { estado:'rechazada' }); return; }
+    const infoBtn=e.target.closest('[data-return-request-info]');
+    if(infoBtn){
+      const form=infoBtn.closest('[data-return-id]')?.querySelector('[data-return-info-form]');
+      if(form){ form.hidden=false; form.querySelector('textarea')?.focus(); }
+      return;
+    }
+    const cancelBtn=e.target.closest('[data-return-info-cancel]');
+    if(cancelBtn){
+      const form=cancelBtn.closest('[data-return-info-form]');
+      if(form){ form.hidden=true; const ta=form.querySelector('textarea'); if(ta) ta.value=''; }
+      return;
+    }
+  });
+  container.addEventListener('submit', async e=>{
+    const form=e.target.closest('[data-return-info-form]');
+    if(!form) return;
+    e.preventDefault();
+    const id=form.dataset.returnInfoForm;
+    const textarea=form.querySelector('textarea[name="respuesta_vendedor"]');
+    const text=String(textarea?.value || '').trim();
+    if(!text){ showMessage(`#returnMsg-${id}`, 'Debes indicar qué información adicional necesitas.'); return; }
+    const controls=form.querySelectorAll('textarea,button');
+    controls.forEach(c=>{c.disabled=true;});
+    try{
+      await updateSellerReturn(id, { estado:'en_revision', respuesta_vendedor:text });
+      await returnsPage();
+    }catch(error){
+      controls.forEach(c=>{c.disabled=false;});
+      showMessage(`#returnMsg-${id}`, error.message || 'No fue posible enviar la solicitud de información.');
     }
   });
 }
