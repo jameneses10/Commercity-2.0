@@ -53,5 +53,5 @@ const storeUpload = multer({ storage: makeStorage('stores'), fileFilter: fileFil
 const productUpload = multer({ storage: makeStorage('products'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 5 * 1024 * 1024, files: 6 } });
 const profileUpload = multer({ storage: makeStorage('profiles'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 3 * 1024 * 1024 } });
 const chatUpload = multer({ storage: makeStorage('chat'), fileFilter: fileFilter({ allowedExt: CHAT_EXTENSIONS, allowedMime: CHAT_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
-const returnUpload = multer({ storage: makeStorage('returns'), fileFilter: fileFilter({ allowedExt: CHAT_EXTENSIONS, allowedMime: CHAT_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
+const returnUpload = multer({ storage: makeStorage('returns'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
 module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile };

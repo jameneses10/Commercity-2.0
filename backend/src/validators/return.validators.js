@@ -18,7 +18,7 @@ function parseItems(value, { req }) {
 const createValidator = [
   body('pedido_id').isInt({ min: 1 }).withMessage('Pedido inválido.'),
   body('motivo').trim().isLength({ min: 3, max: 160 }).withMessage('El motivo debe tener entre 3 y 160 caracteres.'),
-  body('descripcion').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('La descripción no debe superar 2000 caracteres.'),
+  body('descripcion').trim().isLength({ min: 1, max: 2000 }).withMessage('La descripción es obligatoria y no debe superar 2000 caracteres.'),
   body('items').custom(parseItems),
   body('items.*.pedido_detalle_id').isInt({ min: 1 }).withMessage('Detalle de pedido inválido.'),
   body('items.*.cantidad').optional().isInt({ min: 1 }).withMessage('Cantidad inválida.'),

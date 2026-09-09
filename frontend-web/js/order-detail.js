@@ -106,16 +106,22 @@ function applyReturnItemStoreLock(itemList) {
   });
 }
 
+const RETURN_EVIDENCE_MAX_FILES = 5;
+const RETURN_EVIDENCE_MAX_SIZE = 10 * 1024 * 1024;
+const RETURN_EVIDENCE_ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
+
 function setupReturnRequest({ orderId, orderDetails, shipments }) {
   const trigger = document.querySelector('[data-request-return]');
   const formBlock = document.querySelector('[data-return-form]');
   const itemList = document.querySelector('[data-return-item-list]');
   const motivoInput = document.querySelector('[data-return-motivo]');
+  const descriptionInput = document.querySelector('[data-return-description]');
+  const evidenceInput = document.querySelector('[data-return-evidence]');
   const submitBtn = document.querySelector('[data-return-submit]');
   const cancelBtn = document.querySelector('[data-return-cancel]');
   const messageEl = document.querySelector('[data-return-message]');
 
-  if (!trigger || !formBlock || !itemList || !motivoInput || !submitBtn || !messageEl) return;
+  if (!trigger || !formBlock || !itemList || !motivoInput || !descriptionInput || !evidenceInput || !submitBtn || !messageEl) return;
 
   const eligibleItems = computeEligibleReturnItems(orderDetails, shipments);
 
@@ -175,16 +181,40 @@ function setupReturnRequest({ orderId, orderDetails, shipments }) {
       messageEl.textContent = 'El motivo debe tener entre 3 y 160 caracteres.';
       return;
     }
+    const descripcion = String(descriptionInput.value || '').trim();
+    if (!descripcion) {
+      messageEl.textContent = 'Ingresa una descripción de la devolución.';
+      return;
+    }
+    if (descripcion.length > 2000) {
+      messageEl.textContent = 'La descripción no debe superar 2000 caracteres.';
+      return;
+    }
+    const evidenceFiles = Array.from(evidenceInput.files || []);
+    if (evidenceFiles.length > RETURN_EVIDENCE_MAX_FILES) {
+      messageEl.textContent = 'Selecciona un máximo de 5 imágenes de evidencia.';
+      return;
+    }
+    if (!evidenceFiles.every(file => RETURN_EVIDENCE_ALLOWED_MIMES.includes(file.type))) {
+      messageEl.textContent = 'La evidencia debe ser una imagen en formato JPEG, PNG o WEBP.';
+      return;
+    }
+    if (evidenceFiles.some(file => file.size > RETURN_EVIDENCE_MAX_SIZE)) {
+      messageEl.textContent = 'Cada imagen de evidencia debe pesar máximo 10 MB.';
+      return;
+    }
 
     submitBtn.disabled = true;
     messageEl.textContent = '';
 
     try {
-      await api.post('/returns', {
-        pedido_id: orderId,
-        motivo,
-        items: selectedIds.map(id => ({ pedido_detalle_id: id }))
-      });
+      const formData = new FormData();
+      formData.append('pedido_id', orderId);
+      formData.append('motivo', motivo);
+      formData.append('descripcion', descripcion);
+      formData.append('items', JSON.stringify(selectedIds.map(id => ({ pedido_detalle_id: id }))));
+      evidenceFiles.forEach(file => formData.append('evidencias', file));
+      await api.post('/returns', formData);
       submitted = true;
       messageEl.textContent = 'Solicitud de devolución creada correctamente.';
       submitBtn.textContent = 'Solicitud enviada';
