@@ -3,7 +3,10 @@ import { money, showMessage } from './ui.js';
 import { UPLOADS_BASE_URL } from './config.js';
 
 const page = location.pathname.split('/').pop() || 'admin.html';
-const adminPages = new Set(['admin.html','admin-usuarios.html','admin-tiendas.html','admin-productos.html','admin-categorias.html','admin-pedidos.html','admin-pagos.html','admin-envios.html','admin-resenas.html','admin-comisiones.html','admin-notificaciones.html','admin-logs.html','admin-reportes.html']);
+const adminPages = new Set(['admin.html','admin-usuarios.html','admin-tiendas.html','admin-productos.html','admin-categorias.html','admin-pedidos.html','admin-pagos.html','admin-envios.html','admin-devoluciones.html','admin-resenas.html','admin-comisiones.html','admin-notificaciones.html','admin-logs.html','admin-reportes.html']);
+const RETURN_STATUS_LABELS = { solicitada:'Solicitada', en_revision:'En revisión', aprobada:'Aprobada', rechazada:'Rechazada', producto_recibido:'Producto recibido', reembolso_simulado:'Reembolso simulado', cerrada:'Cerrada' };
+function returnStatusLabel(estado){ return RETURN_STATUS_LABELS[estado] || 'Estado no disponible'; }
+const RF212_ADMIN_STATES = ['en_revision','aprobada','rechazada'];
 const state = { user:null };
 
 function esc(v){return String(v ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -50,6 +53,82 @@ function orderCard(o){ const st=norm(o.estado||o.estado_pago||'pendiente'); cons
 async function ordersPage(){ const res=await safe('/admin/orders'); const orders=res.data?.orders||[]; main().innerHTML=shell('Pedidos','cc-order-history.svg','Operación','Pedidos reales administrados.')+filters('orders',[['all','Todos'],['pendiente','Pendientes'],['pagado','Pagados'],['enviado','Enviados'],['entregado','Entregados'],['cancelado','Cancelados']],'Buscar pedido')+`<section class="cc-grid cols-2">${orders.map(orderCard).join('')}</section>${orders.length?'':empty('cc-order-history.svg','Sin pedidos reales.','La API no devolvió pedidos.')}`; bindFilters(main()); }
 async function paymentsPage(){ const payments=(await safe('/admin/payments')).data?.payments||[]; main().innerHTML=shell('Pagos','cc-payment-card.svg','Pagos','Pagos reales del marketplace.')+filters('payments',[['all','Todos'],['aprobado','Aprobados'],['pendiente','Pendientes'],['rechazado','Rechazados'],['reembolsado','Reembolsados']],'Buscar pago')+`<section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Referencia</th><th>Pedido</th><th>Comprador</th><th>Método</th><th>Estado</th><th>Valor</th><th>Fecha</th></tr></thead><tbody>${payments.map(p=>`<tr data-admin-item="payments" data-status="${esc(norm(p.estado))}" data-filter-text="${esc(JSON.stringify(p))}"><td>${esc(p.referencia)}</td><td>#${esc(p.pedido_id)}</td><td>${esc(p.comprador_nombre||'')}</td><td>${esc(p.metodo)}</td><td><span class="cc-chip ${chipClass(p.estado)}">${esc(p.estado)}</span></td><td>${money(p.valor||0)}</td><td>${esc(p.created_at||'')}</td></tr>`).join('')}</tbody></table></section>${payments.length?'':empty('cc-payment-card.svg','Sin pagos reales.','El endpoint administrativo de pagos respondió vacío.')}`; bindFilters(main()); }
 async function shipmentsPage(){ const shipments=(await safe('/admin/shipments')).data?.shipments||[]; main().innerHTML=shell('Envíos','cc-shipping-package.svg','Logística','Envíos reales del marketplace.')+filters('shipments',[['all','Todos'],['pendiente','Pendientes'],['en_camino','En camino'],['entregado','Entregados'],['cancelado','Cancelados']],'Buscar envío')+`<section class="cc-grid cols-2">${shipments.map(s=>`<article class="cc-card" data-admin-item="shipments" data-status="${esc(norm(s.estado))}" data-filter-text="${esc(JSON.stringify(s))}"><span class="cc-chip ${chipClass(s.estado)}">${esc(s.estado)}</span><h2>Envío #${esc(s.id)}</h2><p class="cc-muted">Pedido #${esc(s.pedido_id)} · Comprador: ${esc(s.comprador_nombre||'')}</p><p class="cc-muted">Tienda: ${esc(s.tienda_nombre||'')} · Vendedor: ${esc(s.vendedor_nombre||'')}</p><button class="cc-btn outline" data-visual-action="Detalle de envío real consultado" type="button">Ver detalle</button></article>`).join('')}</section>${shipments.length?'':empty('cc-shipping-package.svg','Sin envíos reales.','El endpoint administrativo de envíos respondió vacío.')}`; bindFilters(main()); }
+function safeEvidenceUrl(v){ if(!v) return null; const s=String(v).trim(); if(s.startsWith('/uploads')) return `${UPLOADS_BASE_URL}${s.replace('/uploads','')}`; if(s.startsWith('/')) return `${UPLOADS_BASE_URL}/${s.replace(/^\/+/, '')}`; if(/^https?:\/\//i.test(s)) return s; return null; }
+function returnCard(r){
+  const estado=r.estado||'solicitada';
+  const id=r.id;
+  const respuestaVendedor=r.respuesta_vendedor?`<p class="cc-muted"><b>Respuesta del vendedor:</b> ${esc(r.respuesta_vendedor)}</p>`:'';
+  const respuestaAdmin=r.respuesta_admin?`<p class="cc-muted"><b>Respuesta del administrador:</b> ${esc(r.respuesta_admin)}</p>`:'';
+  return `<article class="cc-card cc-order-card" data-admin-item="returns" data-status="${esc(estado)}" data-return-id="${esc(id)}"><div><span class="cc-chip orange">${esc(returnStatusLabel(estado))}</span><h2>Solicitud #${esc(r.numero_solicitud||'')}</h2><p class="cc-muted">Pedido: ${esc(r.pedido_id||'pendiente')} · ${money(r.monto_estimado||0)} · ${esc(r.creado_en?new Date(r.creado_en).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'}):'Fecha no disponible')}</p><p class="cc-muted">Comprador: ${esc(r.comprador_nombre||'No disponible')} · Tienda: ${esc(r.tienda_nombre||'No disponible')}</p><p class="cc-muted">${esc(r.motivo||'Motivo no especificado')}</p>${respuestaVendedor}${respuestaAdmin}</div><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-review-return="${esc(id)}">Ver detalle</button></div></article>`;
+}
+async function returnsPage(){ const res=await safe('/admin/returns'); const returns=res.data?.returns||[]; main().innerHTML=shell('Devoluciones','cc-return-request.svg','Posventa','Consulta e interviene solicitudes de devolución cuando exista una disputa entre comprador y vendedor.')+`<section class="cc-module-list" data-admin-returns-list>${returns.length?returns.map(returnCard).join(''):empty('cc-return-request.svg','Sin solicitudes de devolución.','La API no devolvió solicitudes de devolución.')}</section><section id="adminReturnDetailPanel" class="mt-5"></section>`; }
+window.reviewReturn = async function(id) {
+  const panel = document.getElementById('adminReturnDetailPanel');
+  if(!panel) return;
+  panel.innerHTML = '<div class="cc-card"><p>Cargando detalle...</p></div>';
+  const res = await safe(`/returns/${id}`);
+  if(res.error) {
+    panel.innerHTML = `<div class="cc-card cc-soft-warning"><p>Error: ${esc(res.error.message||'No fue posible cargar el detalle.')}</p></div>`;
+    return;
+  }
+  const ret = res.data?.return;
+  if(!ret) {
+    panel.innerHTML = '<div class="cc-card cc-soft-warning"><p>No se encontró la solicitud.</p></div>';
+    return;
+  }
+  const items = Array.isArray(ret.items) ? ret.items : [];
+  const evidencias = Array.isArray(ret.evidencias) ? ret.evidencias : [];
+  const itemsHtml = items.length ? `<ul>${items.map(it=>`<li>${esc(it.producto_nombre||'Producto')} · Cantidad: ${esc(it.cantidad??'')} · Precio unitario: ${money(it.precio_unitario||0)} · Subtotal: ${money(it.subtotal||0)}</li>`).join('')}</ul>` : '<p class="cc-muted">Sin productos asociados.</p>';
+  const evidenciasHtml = evidencias.length ? `<ul>${evidencias.map(ev=>{ const url=safeEvidenceUrl(ev.url_archivo); const label=esc(ev.nombre_original||'Evidencia'); return url ? `<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a></li>` : `<li>${label} (enlace no disponible)</li>`; }).join('')}</ul>` : '<p class="cc-muted">Sin evidencia adjunta.</p>';
+  const estado = ret.estado||'solicitada';
+  const stateOptions = RF212_ADMIN_STATES.map(s=>`<option value="${esc(s)}">${esc(returnStatusLabel(s))}</option>`).join('');
+  let html = `<section class="cc-card">
+    <h2 class="text-2xl font-bold mb-3">Detalle de Solicitud #${esc(ret.numero_solicitud||ret.id)}</h2>
+    <p class="cc-muted">Pedido: ${esc(ret.pedido_id||'pendiente')} · Estado actual: <span class="cc-chip ${chipClass(estado)}">${esc(returnStatusLabel(estado))}</span></p>
+    <p class="cc-muted">Comprador: ${esc(ret.comprador_nombre||'No disponible')} · Tienda: ${esc(ret.tienda_nombre||'No disponible')}</p>
+    <p><b>Motivo:</b> ${esc(ret.motivo||'No especificado')}</p>
+    <p><b>Descripción:</b> ${esc(ret.descripcion||'Sin descripción.')}</p>
+    ${ret.respuesta_vendedor?`<p><b>Respuesta del vendedor:</b> ${esc(ret.respuesta_vendedor)}</p>`:''}
+    ${ret.respuesta_admin?`<p><b>Respuesta del administrador:</b> ${esc(ret.respuesta_admin)}</p>`:''}
+    <h3 class="font-bold mt-3">Productos</h3>${itemsHtml}
+    <h3 class="font-bold mt-3">Evidencia</h3>${evidenciasHtml}
+  </section>`;
+  html += `<section class="cc-card mt-3">
+    <h3 class="font-bold mb-2">Intervención administrativa</h3>
+    <form id="adminReturnResolveForm" data-return-id="${esc(id)}">
+      <label class="cc-label">Acción<select class="cc-input" name="estado">${stateOptions}</select></label>
+      <label class="cc-label full">Respuesta para las partes (opcional):
+        <textarea class="cc-input" name="respuesta_admin" maxlength="2000" rows="2"></textarea>
+      </label>
+      <div id="adminReturnResolveMsg"></div>
+      <div class="cc-card-actions-row mt-3">
+        <button class="cc-btn" type="button" onclick="submitReturnResolution(${Number(id)})">Registrar intervención</button>
+      </div>
+    </form>
+  </section>`;
+  panel.innerHTML = html;
+};
+window.submitReturnResolution = async function(id) {
+  const form = document.getElementById('adminReturnResolveForm');
+  const msg = document.getElementById('adminReturnResolveMsg');
+  if(!form) return;
+  const estado = form.querySelector('[name="estado"]').value;
+  if(!RF212_ADMIN_STATES.includes(estado)) { msg.innerHTML = '<p style="color:red">Acción no permitida.</p>'; return; }
+  const respuestaRaw = form.querySelector('[name="respuesta_admin"]').value || '';
+  const respuesta = respuestaRaw.trim();
+  const payload = { estado };
+  if(respuesta) payload.respuesta_admin = respuesta;
+  const controls = form.querySelectorAll('select,textarea,button');
+  controls.forEach(c=>{c.disabled=true;});
+  try {
+    const res = await patchSafe(`/admin/returns/${id}/resolve`, payload);
+    msg.innerHTML = `<p style="color:green">Operación exitosa: ${esc(res.message||'ok')}</p>`;
+    setTimeout(() => returnsPage(), 1500);
+  } catch(e) {
+    controls.forEach(c=>{c.disabled=false;});
+    msg.innerHTML = `<p style="color:red">Error: ${esc(e.message||'No fue posible registrar la intervención.')}</p>`;
+  }
+};
 async function reviewsPage(){ const reviews=(await safe('/admin/reviews')).data?.reviews||[]; main().innerHTML=shell('Reseñas','cc-rating-star-review.svg','Moderación','Reseñas reales del marketplace.')+filters('reviews',[['all','Todas'],['pendiente','Pendientes'],['aprobada','Aprobadas'],['ocultada','Ocultas'],['rechazada','Rechazadas']],'Buscar reseña')+`<section class="cc-grid cols-2">${reviews.map(r=>`<article class="cc-card" data-admin-item="reviews" data-status="${esc(norm(r.estado))}" data-filter-text="${esc(JSON.stringify(r))}"><span class="cc-chip ${chipClass(r.estado)}">${esc(r.estado)}</span><h2>${esc(r.producto_nombre||'Producto')}</h2><p class="cc-muted">Tienda: ${esc(r.tienda_nombre||'')} · Comprador: ${esc(r.comprador_nombre||'')}</p><p class="cc-stars">${'★'.repeat(Number(r.estrellas||0))}${'☆'.repeat(Math.max(0,5-Number(r.estrellas||0)))}</p><p>${esc(r.comentario||'Sin comentario')}</p></article>`).join('')}</section>${reviews.length?'':empty('cc-rating-star-review.svg','Sin reseñas reales.','El endpoint administrativo de reseñas respondió vacío.')}`; bindFilters(main()); }
 function renderCommissionsResults(commissions,hasActiveFilters){
   const emptyMessage=hasActiveFilters?'No se encontraron comisiones para los filtros seleccionados.':'El endpoint administrativo de comisiones respondió vacío.';
@@ -179,6 +258,6 @@ window.submitResolveDeleteRequest = async function(id, estado) {
     setTimeout(() => window.reviewDeleteRequest(id), 2500);
   }
 };
-function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.reviewDeleteRequest){ window.reviewDeleteRequest(b.dataset.reviewDeleteRequest); return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
-async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
+function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.reviewDeleteRequest){ window.reviewDeleteRequest(b.dataset.reviewDeleteRequest); return; } if(b.dataset.reviewReturn){ window.reviewReturn(b.dataset.reviewReturn); return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
+async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-devoluciones.html') await returnsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
 init();
