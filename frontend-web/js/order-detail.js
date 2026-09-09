@@ -6,6 +6,14 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+const shipmentStatusLabels = {
+  pendiente: 'Pendiente',
+  preparado: 'Preparado',
+  en_camino: 'En camino',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado'
+};
+
 function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, shipmentLabel, carrierRow, guideRow }) {
   if (carrierRow) {
     carrierRow.hidden = true;
@@ -32,7 +40,7 @@ function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, ship
 
   if (shipments.length === 1) {
     const [onlyShipment] = shipments;
-    shipmentLabel.textContent = capitalize(onlyShipment?.estado || 'No disponible');
+    shipmentLabel.textContent = shipmentStatusLabels[onlyShipment?.estado] || 'No disponible';
   } else {
     shipmentLabel.textContent = `${shipments.length} paquetes`;
   }
@@ -61,7 +69,11 @@ function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, ship
     guideText.className = 'cc-muted text-xs';
     guideText.textContent = `Guía: ${guide}`;
 
-    packageEntry.append(identity, carrierText, guideText);
+    const statusText = document.createElement('p');
+    statusText.className = 'cc-muted text-xs';
+    statusText.textContent = `Estado: ${shipmentStatusLabels[shipment?.estado] || 'No disponible'}`;
+
+    packageEntry.append(identity, statusText, carrierText, guideText);
     packageList.append(packageEntry);
   });
 
