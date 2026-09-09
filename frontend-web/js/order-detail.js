@@ -96,16 +96,26 @@ function disableReturnTrigger(trigger) {
   trigger.style.pointerEvents = 'none';
 }
 
+function applyReturnItemStoreLock(itemList) {
+  const checkboxes = Array.from(itemList.querySelectorAll('[data-return-item-checkbox]'));
+  const checkedStores = new Set(
+    checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.tiendaId)
+  );
+  checkboxes.forEach(cb => {
+    cb.disabled = checkedStores.size > 0 && !cb.checked && !checkedStores.has(cb.dataset.tiendaId);
+  });
+}
+
 function setupReturnRequest({ orderId, orderDetails, shipments }) {
   const trigger = document.querySelector('[data-request-return]');
   const formBlock = document.querySelector('[data-return-form]');
-  const select = document.querySelector('[data-return-item-select]');
+  const itemList = document.querySelector('[data-return-item-list]');
   const motivoInput = document.querySelector('[data-return-motivo]');
   const submitBtn = document.querySelector('[data-return-submit]');
   const cancelBtn = document.querySelector('[data-return-cancel]');
   const messageEl = document.querySelector('[data-return-message]');
 
-  if (!trigger || !formBlock || !select || !motivoInput || !submitBtn || !messageEl) return;
+  if (!trigger || !formBlock || !itemList || !motivoInput || !submitBtn || !messageEl) return;
 
   const eligibleItems = computeEligibleReturnItems(orderDetails, shipments);
 
@@ -116,10 +126,14 @@ function setupReturnRequest({ orderId, orderDetails, shipments }) {
     return;
   }
 
-  select.innerHTML = eligibleItems.map(item => {
+  itemList.innerHTML = eligibleItems.map(item => {
     const label = `${item.producto_nombre || 'Producto'} · ${item.tienda_nombre || 'Tienda'}`;
-    return `<option value="${item.id}">${escapeHtml(label)}</option>`;
+    return `<label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" data-return-item-checkbox data-tienda-id="${Number(item.tienda_id)}" value="${item.id}"> ${escapeHtml(label)}</label>`;
   }).join('');
+
+  itemList.addEventListener('change', event => {
+    if (event.target.matches('[data-return-item-checkbox]')) applyReturnItemStoreLock(itemList);
+  });
 
   let submitted = false;
 
@@ -137,11 +151,24 @@ function setupReturnRequest({ orderId, orderDetails, shipments }) {
 
   submitBtn.addEventListener('click', async () => {
     if (submitted) return;
-    const selectedId = parseInt(select.value, 10);
+    const selectedIds = Array.from(itemList.querySelectorAll('[data-return-item-checkbox]:checked'))
+      .map(cb => parseInt(cb.value, 10));
     const motivo = String(motivoInput.value || '').trim();
 
-    if (!selectedId || !eligibleItems.some(item => Number(item.id) === selectedId)) {
+    if (!selectedIds.length) {
+      messageEl.textContent = 'Selecciona al menos un producto para devolver.';
+      return;
+    }
+    if (!selectedIds.every(id => eligibleItems.some(item => Number(item.id) === id))) {
       messageEl.textContent = 'Selecciona un producto válido para devolver.';
+      return;
+    }
+    const storeIds = new Set(selectedIds.map(id => {
+      const detail = eligibleItems.find(item => Number(item.id) === id);
+      return Number(detail.tienda_id);
+    }));
+    if (storeIds.size > 1) {
+      messageEl.textContent = 'Selecciona productos de una sola tienda por solicitud.';
       return;
     }
     if (motivo.length < 3 || motivo.length > 160) {
@@ -156,7 +183,7 @@ function setupReturnRequest({ orderId, orderDetails, shipments }) {
       await api.post('/returns', {
         pedido_id: orderId,
         motivo,
-        items: [{ pedido_detalle_id: selectedId }]
+        items: selectedIds.map(id => ({ pedido_detalle_id: id }))
       });
       submitted = true;
       messageEl.textContent = 'Solicitud de devolución creada correctamente.';
