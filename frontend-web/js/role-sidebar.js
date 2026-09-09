@@ -10,7 +10,7 @@ const MENUS = {
       { key: 'privacidad', label: 'Privacidad', href: 'cuenta-privacidad.html', icon: 'cc-privacy-security.svg', routes: ['cuenta-privacidad.html'] },
       { key: 'notificaciones', label: 'Notificaciones', href: 'notificaciones.html', icon: 'cc-notifications.svg', routes: ['notificaciones.html'] },
       { key: 'resenas', label: 'Reseñas', href: 'resenas.html', icon: 'cc-rating-star-review.svg', routes: ['resenas.html'] },
-      { key: 'devoluciones', label: 'Devoluciones', href: 'devoluciones.html', icon: 'cc-return-request.svg', routes: ['devoluciones.html', 'devolucion-detalle.html'] }
+      { key: 'devoluciones', label: 'Reembolsos y devoluciones', href: 'devoluciones.html', icon: 'cc-return-request.svg', routes: ['devoluciones.html', 'devolucion-detalle.html'] }
     ]
   },
   vendedor: {
