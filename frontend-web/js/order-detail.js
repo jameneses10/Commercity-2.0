@@ -80,6 +80,95 @@ function renderOrderPackages({ shipments, shipmentReadState, shipmentBlock, ship
   shipmentBlock.append(packageList);
 }
 
+function computeEligibleReturnItems(details, shipments) {
+  const deliveredTiendaIds = new Set(
+    (shipments || [])
+      .filter(shipment => shipment && shipment.estado === 'entregado')
+      .map(shipment => Number(shipment.tienda_id))
+  );
+  return (details || []).filter(detail => detail && deliveredTiendaIds.has(Number(detail.tienda_id)));
+}
+
+function disableReturnTrigger(trigger) {
+  if (!trigger) return;
+  trigger.setAttribute('aria-disabled', 'true');
+  trigger.style.opacity = '0.5';
+  trigger.style.pointerEvents = 'none';
+}
+
+function setupReturnRequest({ orderId, orderDetails, shipments }) {
+  const trigger = document.querySelector('[data-request-return]');
+  const formBlock = document.querySelector('[data-return-form]');
+  const select = document.querySelector('[data-return-item-select]');
+  const motivoInput = document.querySelector('[data-return-motivo]');
+  const submitBtn = document.querySelector('[data-return-submit]');
+  const cancelBtn = document.querySelector('[data-return-cancel]');
+  const messageEl = document.querySelector('[data-return-message]');
+
+  if (!trigger || !formBlock || !select || !motivoInput || !submitBtn || !messageEl) return;
+
+  const eligibleItems = computeEligibleReturnItems(orderDetails, shipments);
+
+  if (!eligibleItems.length) {
+    disableReturnTrigger(trigger);
+    formBlock.hidden = true;
+    trigger.addEventListener('click', event => event.preventDefault());
+    return;
+  }
+
+  select.innerHTML = eligibleItems.map(item => {
+    const label = `${item.producto_nombre || 'Producto'} · ${item.tienda_nombre || 'Tienda'}`;
+    return `<option value="${item.id}">${escapeHtml(label)}</option>`;
+  }).join('');
+
+  let submitted = false;
+
+  trigger.addEventListener('click', event => {
+    event.preventDefault();
+    if (submitted) return;
+    formBlock.hidden = !formBlock.hidden;
+    messageEl.textContent = '';
+  });
+
+  cancelBtn?.addEventListener('click', () => {
+    formBlock.hidden = true;
+    messageEl.textContent = '';
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    if (submitted) return;
+    const selectedId = parseInt(select.value, 10);
+    const motivo = String(motivoInput.value || '').trim();
+
+    if (!selectedId || !eligibleItems.some(item => Number(item.id) === selectedId)) {
+      messageEl.textContent = 'Selecciona un producto válido para devolver.';
+      return;
+    }
+    if (motivo.length < 3 || motivo.length > 160) {
+      messageEl.textContent = 'El motivo debe tener entre 3 y 160 caracteres.';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    messageEl.textContent = '';
+
+    try {
+      await api.post('/returns', {
+        pedido_id: orderId,
+        motivo,
+        items: [{ pedido_detalle_id: selectedId }]
+      });
+      submitted = true;
+      messageEl.textContent = 'Solicitud de devolución creada correctamente.';
+      submitBtn.textContent = 'Solicitud enviada';
+      if (cancelBtn) cancelBtn.hidden = true;
+    } catch (error) {
+      submitBtn.disabled = false;
+      messageEl.textContent = (error && error.message) || 'No fue posible crear la solicitud de devolución.';
+    }
+  });
+}
+
 function sanitizeFilenamePart(value) {
   return String(value ?? '').replace(/[^A-Za-z0-9._-]/g, '');
 }
@@ -318,6 +407,8 @@ async function initOrderDetail() {
         itemsBox.innerHTML = `<tr><td colspan="4" class="text-center py-4">No hay productos en el detalle.</td></tr>`;
       }
     }
+
+    setupReturnRequest({ orderId: id, orderDetails: order.details || order.items || [], shipments: orderShipments });
 
     if (loading) loading.classList.add('hidden');
     if (contentBox) contentBox.classList.remove('hidden');
