@@ -12,7 +12,7 @@ async function deliveredStoreIds(orderId, conn = pool) { const [r] = await conn.
 async function hasActiveDuplicate(orderId, detailIds, conn = pool) {
   if (!detailIds.length) return false;
   const [[r]] = await conn.query(`SELECT COUNT(*) total FROM devoluciones d INNER JOIN devolucion_items i ON i.devolucion_id=d.id
-    WHERE d.pedido_id=? AND i.pedido_detalle_id IN (?) AND d.estado IN ('solicitada','en_revision','aprobada','reembolso_simulado')`, [orderId, detailIds]);
+    WHERE d.pedido_id=? AND i.pedido_detalle_id IN (?) AND d.estado IN ('solicitada','en_revision','aprobada','producto_recibido','reembolso_simulado')`, [orderId, detailIds]);
   return Number(r.total || 0) > 0;
 }
 async function createReturn(conn, data) {

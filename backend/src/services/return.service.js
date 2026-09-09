@@ -5,9 +5,9 @@ const logService = require('./log.service');
 function err(message, statusCode) { const e = new Error(message); e.statusCode = statusCode; return e; }
 const BUYER_STATES = ['solicitada'];
 const SELLER_STATES = ['en_revision','aprobada','rechazada'];
-const ADMIN_STATES = ['en_revision','aprobada','rechazada','reembolso_simulado','cerrada'];
+const ADMIN_STATES = ['en_revision','aprobada','rechazada','producto_recibido','reembolso_simulado','cerrada'];
 function number() { return `DEV-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`; }
-function statusTitle(estado) { return ({ solicitada:'Devolución solicitada', en_revision:'Devolución en revisión', aprobada:'Devolución aprobada', rechazada:'Devolución rechazada', reembolso_simulado:'Reembolso simulado', cerrada:'Devolución cerrada' })[estado] || 'Actualización de devolución'; }
+function statusTitle(estado) { return ({ solicitada:'Devolución solicitada', en_revision:'Devolución en revisión', aprobada:'Devolución aprobada', rechazada:'Devolución rechazada', producto_recibido:'Producto recibido', reembolso_simulado:'Reembolso simulado', cerrada:'Devolución cerrada' })[estado] || 'Actualización de devolución'; }
 async function detailForUser(user, id) {
   const row = await model.findById(id); if (!row) throw err('Solicitud de devolución no encontrada.', 404);
   if (user.rol === 'comprador' && Number(row.comprador_id) !== Number(user.id)) throw err('No autorizado para ver esta devolución.', 403);

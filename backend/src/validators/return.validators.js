@@ -24,5 +24,5 @@ const createValidator = [
   body('items.*.cantidad').optional().isInt({ min: 1 }).withMessage('Cantidad inválida.'),
 ];
 const sellerStatusValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada']).withMessage('Estado no permitido.'), body('respuesta_vendedor').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.')];
-const adminResolveValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada','reembolso_simulado','cerrada']).withMessage('Estado no permitido.'), body('respuesta_admin').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.')];
+const adminResolveValidator = [...idParam, body('estado').isIn(['en_revision','aprobada','rechazada','producto_recibido','reembolso_simulado','cerrada']).withMessage('Estado no permitido.'), body('respuesta_admin').optional({ nullable:true, checkFalsy:true }).trim().isLength({ max: 2000 }).withMessage('Respuesta muy larga.')];
 module.exports = { idParam, createValidator, sellerStatusValidator, adminResolveValidator };
