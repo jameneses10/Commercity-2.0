@@ -68,6 +68,7 @@ function buyerProfileMenu(){
     <div id="cc-buyer-profile-menu" data-profile-menu role="menu" hidden style="position:absolute;right:0;top:calc(100% + 8px);z-index:80;width:190px;max-width:calc(100vw - 20px);background:var(--cc-panel);color:var(--cc-ink);border:1px solid var(--cc-line);border-radius:10px;box-shadow:0 8px 0 var(--cc-shadow);padding:6px">
       <a href="comprador.html" role="menuitem" style="display:flex;align-items:center;width:100%;min-height:44px;padding:10px 12px;border-radius:7px;font-weight:800;color:var(--cc-ink);text-decoration:none">Mi cuenta</a>
       <a href="mis-pedidos.html" role="menuitem" style="display:flex;align-items:center;width:100%;min-height:44px;margin-top:4px;padding:10px 12px;border-radius:7px;font-weight:800;color:var(--cc-ink);text-decoration:none">Mis pedidos</a>
+      <a href="devoluciones.html" role="menuitem" style="display:flex;align-items:center;width:100%;min-height:44px;margin-top:4px;padding:10px 12px;border-radius:7px;font-weight:800;color:var(--cc-ink);text-decoration:none">Reembolsos y devoluciones</a>
     </div>
   </div>`;
 }
