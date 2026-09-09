@@ -26,6 +26,7 @@ async function create(user, payload, files = [], meta = {}) {
     const order = await model.orderForBuyer(pedidoId, user.id, conn);
     if (!order) throw err('Pedido no encontrado para el comprador.', 404);
     if (order.estado_pago !== 'pagado') throw err('No se puede solicitar devolución de un pedido no pagado.', 409);
+    if (order.estado_general === 'cancelado') throw err('No se puede solicitar devolución de un pedido cancelado.', 409);
     const details = await model.detailsForOrder(pedidoId, detailIds, conn);
     if (details.length !== detailIds.length) throw err('Uno o más productos no pertenecen al pedido.', 400);
     const storeIds = new Set(details.map(d => Number(d.tienda_id)));
