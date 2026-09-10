@@ -120,6 +120,10 @@ function createRatingModal() {
     <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-slate-200 dark:border-slate-800 relative space-y-4">
       <h2 data-rating-title class="text-lg font-bold text-slate-900 dark:text-white Poppins"></h2>
       <div data-rating-stars class="flex gap-1"></div>
+      <div class="space-y-1">
+        <label for="ratingComment" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Comentario (opcional)</label>
+        <textarea id="ratingComment" data-rating-comment rows="3" maxlength="2000" class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm text-slate-900 dark:text-white"></textarea>
+      </div>
       <p data-rating-message class="text-sm min-h-[1.25rem] text-red-600"></p>
       <div class="flex items-center gap-3 justify-end">
         <button type="button" data-rating-cancel class="cc-btn cc-btn-secondary px-4 py-2 text-sm font-bold rounded-xl">Cancelar</button>
@@ -161,6 +165,7 @@ function createRatingModal() {
     ratingState.estrellas = 0;
     ratingState.submitting = false;
     ratingModalContainer.querySelector('[data-rating-message]').textContent = '';
+    ratingModalContainer.querySelector('[data-rating-comment]').value = '';
     refreshRatingUi();
   }
 
@@ -184,16 +189,23 @@ function createRatingModal() {
     if (!Number.isInteger(estrellas) || estrellas < 1 || estrellas > 5) return;
     const { pedidoId, productoId, detalleId } = ratingState;
     if (!pedidoId || !productoId || !detalleId) return;
+    const messageEl = ratingModalContainer.querySelector('[data-rating-message]');
+    const comentario = String(ratingModalContainer.querySelector('[data-rating-comment]').value || '').trim();
+    if (comentario.length > 2000) {
+      messageEl.textContent = 'El comentario no debe superar 2000 caracteres.';
+      return;
+    }
     ratingState.submitting = true;
     refreshRatingUi();
-    const messageEl = ratingModalContainer.querySelector('[data-rating-message]');
     messageEl.textContent = '';
     try {
-      await api.post('/reviews', { pedido_id: pedidoId, producto_id: productoId, estrellas });
+      const payload = { pedido_id: pedidoId, producto_id: productoId, estrellas };
+      if (comentario) payload.comentario = comentario;
+      await api.post('/reviews', payload);
       ratedProductLines.add(detalleId);
       const trigger = document.querySelector(`[data-rate-btn][data-detalle-id="${detalleId}"]`);
       if (trigger) { trigger.disabled = true; trigger.textContent = 'Ya calificado'; }
-      showToast('Calificación registrada correctamente.', true);
+      showToast(comentario ? 'Reseña registrada correctamente.' : 'Calificación registrada correctamente.', true);
       closeRatingModal();
     } catch (error) {
       ratingState.submitting = false;
@@ -212,6 +224,7 @@ function openRatingModal(item, pedidoId) {
   ratingState.submitting = false;
   ratingModalContainer.querySelector('[data-rating-title]').textContent = `Calificar ${item.producto_nombre || 'producto'}`;
   ratingModalContainer.querySelector('[data-rating-message]').textContent = '';
+  ratingModalContainer.querySelector('[data-rating-comment]').value = '';
   ratingModalContainer._refreshRatingUi();
   ratingModalContainer.classList.remove('hidden');
 }
