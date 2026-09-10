@@ -62,10 +62,16 @@ async function sellerUpdate(user, id, payload, meta = {}) {
   if (user.rol !== 'vendedor') throw err('Solo vendedores pueden actualizar devoluciones de su tienda.', 403);
   if (!SELLER_STATES.includes(payload.estado)) throw err('Estado no permitido para vendedor.', 400);
   if (!(await model.sellerOwnsReturn(id, user.id))) throw err('La devolución no pertenece a tu tienda.', 403);
-  const updated = await model.updateSeller(id, payload); const row = await model.findById(id);
+  const conn = await model.pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await model.updateSeller(id, payload, conn);
+    await logService.log(conn, { usuario_id:user.id, accion:'devolucion_actualizada_vendedor', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
+    await conn.commit();
+  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+  const row = await model.findById(id);
   await notificationService.create(null, row.comprador_id, { tipo:'devolucion_actualizada', titulo:statusTitle(payload.estado), mensaje:payload.respuesta_vendedor || 'El vendedor actualizó tu solicitud.', entidad_tipo:'devolucion', entidad_id:id });
-  await logService.log(null, { usuario_id:user.id, accion:'devolucion_actualizada_vendedor', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
-  return { return: await model.hydrate(updated) };
+  return { return: await model.hydrate(row) };
 }
 async function adminResolve(user, id, payload, meta = {}) {
   if (user.rol !== 'administrador') throw err('Solo administradores pueden resolver devoluciones.', 403);
@@ -79,17 +85,24 @@ async function adminResolve(user, id, payload, meta = {}) {
       if (!row) throw err('Solicitud de devolución no encontrada.', 404);
       if (!(await model.findRefundByReturnId(row.id, conn))) await model.createSimulatedRefund(conn, { devolucion_id: row.id, pedido_id: row.pedido_id, monto: row.monto_estimado });
       await model.updateAdmin(id, payload, conn);
+      await logService.log(conn, { usuario_id:user.id, accion:'reembolso_simulado', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
       await conn.commit();
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
     updated = await model.findById(id);
   } else {
     row = await model.findById(id); if (!row) throw err('Solicitud de devolución no encontrada.', 404);
-    updated = await model.updateAdmin(id, payload);
+    const conn = await model.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await model.updateAdmin(id, payload, conn);
+      await logService.log(conn, { usuario_id:user.id, accion:'devolucion_resuelta_admin', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
+      await conn.commit();
+    } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+    updated = await model.findById(id);
   }
   const sellerId = await model.sellerForStore(row.tienda_id);
   await notificationService.create(null, row.comprador_id, { tipo:'devolucion_resuelta', titulo:statusTitle(payload.estado), mensaje:payload.respuesta_admin || 'El administrador actualizó tu devolución.', entidad_tipo:'devolucion', entidad_id:id });
   await notificationService.create(null, sellerId, { tipo:'devolucion_resuelta', titulo:statusTitle(payload.estado), mensaje:'El administrador actualizó una devolución de tu tienda.', entidad_tipo:'devolucion', entidad_id:id });
-  await logService.log(null, { usuario_id:user.id, accion: payload.estado === 'reembolso_simulado' ? 'reembolso_simulado' : 'devolucion_resuelta_admin', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
   return { return: await model.hydrate(updated) };
 }
 module.exports = { create, myReturns, detailForUser, sellerReturns, sellerUpdate, adminReturns, adminResolve };
