@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { escapeHtml, money } from './ui.js';
+import { escapeHtml, money, showToast } from './ui.js';
 
 function capitalize(s) {
   if (typeof s !== 'string') return '';
@@ -103,6 +103,129 @@ function applyReturnItemStoreLock(itemList) {
   );
   checkboxes.forEach(cb => {
     cb.disabled = checkedStores.size > 0 && !cb.checked && !checkedStores.has(cb.dataset.tiendaId);
+  });
+}
+
+const ratedProductLines = new Set();
+const ratingState = { pedidoId: null, detalleId: null, productoId: null, estrellas: 0, submitting: false };
+let ratingModalContainer = null;
+
+function createRatingModal() {
+  if (ratingModalContainer) return;
+  ratingModalContainer = document.createElement('div');
+  ratingModalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 hidden';
+  ratingModalContainer.setAttribute('role', 'dialog');
+  ratingModalContainer.setAttribute('aria-modal', 'true');
+  ratingModalContainer.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-slate-200 dark:border-slate-800 relative space-y-4">
+      <h2 data-rating-title class="text-lg font-bold text-slate-900 dark:text-white Poppins"></h2>
+      <div data-rating-stars class="flex gap-1"></div>
+      <p data-rating-message class="text-sm min-h-[1.25rem] text-red-600"></p>
+      <div class="flex items-center gap-3 justify-end">
+        <button type="button" data-rating-cancel class="cc-btn cc-btn-secondary px-4 py-2 text-sm font-bold rounded-xl">Cancelar</button>
+        <button type="button" data-rating-submit class="cc-btn cc-btn-primary px-4 py-2 text-sm font-bold rounded-xl" disabled>Enviar calificación</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ratingModalContainer);
+
+  const starsBox = ratingModalContainer.querySelector('[data-rating-stars]');
+  for (let value = 1; value <= 5; value += 1) {
+    const starBtn = document.createElement('button');
+    starBtn.type = 'button';
+    starBtn.dataset.ratingStar = String(value);
+    starBtn.setAttribute('aria-label', `${value} ${value === 1 ? 'estrella' : 'estrellas'}`);
+    starBtn.setAttribute('aria-pressed', 'false');
+    starBtn.className = 'cc-stars text-3xl leading-none bg-transparent border-0 cursor-pointer';
+    starBtn.textContent = '☆';
+    starsBox.appendChild(starBtn);
+  }
+
+  function refreshRatingUi() {
+    starsBox.querySelectorAll('[data-rating-star]').forEach(btn => {
+      const filled = Number(btn.dataset.ratingStar) <= ratingState.estrellas;
+      btn.textContent = filled ? '★' : '☆';
+      btn.style.color = filled ? '#fa8000' : '#cbd5e1';
+      btn.setAttribute('aria-pressed', filled ? 'true' : 'false');
+    });
+    const submitBtn = ratingModalContainer.querySelector('[data-rating-submit]');
+    submitBtn.disabled = ratingState.submitting || !(Number.isInteger(ratingState.estrellas) && ratingState.estrellas >= 1 && ratingState.estrellas <= 5);
+  }
+  ratingModalContainer._refreshRatingUi = refreshRatingUi;
+
+  function closeRatingModal() {
+    ratingModalContainer.classList.add('hidden');
+    ratingState.pedidoId = null;
+    ratingState.detalleId = null;
+    ratingState.productoId = null;
+    ratingState.estrellas = 0;
+    ratingState.submitting = false;
+    ratingModalContainer.querySelector('[data-rating-message]').textContent = '';
+    refreshRatingUi();
+  }
+
+  starsBox.addEventListener('click', event => {
+    const btn = event.target.closest('[data-rating-star]');
+    if (!btn) return;
+    ratingState.estrellas = Number(btn.dataset.ratingStar);
+    ratingModalContainer.querySelector('[data-rating-message]').textContent = '';
+    refreshRatingUi();
+  });
+
+  ratingModalContainer.querySelector('[data-rating-cancel]').addEventListener('click', closeRatingModal);
+  ratingModalContainer.addEventListener('click', event => { if (event.target === ratingModalContainer) closeRatingModal(); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !ratingModalContainer.classList.contains('hidden')) closeRatingModal();
+  });
+
+  ratingModalContainer.querySelector('[data-rating-submit]').addEventListener('click', async () => {
+    if (ratingState.submitting) return;
+    const estrellas = ratingState.estrellas;
+    if (!Number.isInteger(estrellas) || estrellas < 1 || estrellas > 5) return;
+    const { pedidoId, productoId, detalleId } = ratingState;
+    if (!pedidoId || !productoId || !detalleId) return;
+    ratingState.submitting = true;
+    refreshRatingUi();
+    const messageEl = ratingModalContainer.querySelector('[data-rating-message]');
+    messageEl.textContent = '';
+    try {
+      await api.post('/reviews', { pedido_id: pedidoId, producto_id: productoId, estrellas });
+      ratedProductLines.add(detalleId);
+      const trigger = document.querySelector(`[data-rate-btn][data-detalle-id="${detalleId}"]`);
+      if (trigger) { trigger.disabled = true; trigger.textContent = 'Ya calificado'; }
+      showToast('Calificación registrada correctamente.', true);
+      closeRatingModal();
+    } catch (error) {
+      ratingState.submitting = false;
+      messageEl.textContent = (error && error.message) || 'No fue posible registrar la calificación.';
+      refreshRatingUi();
+    }
+  });
+}
+
+function openRatingModal(item, pedidoId) {
+  createRatingModal();
+  ratingState.pedidoId = pedidoId;
+  ratingState.detalleId = Number(item.id);
+  ratingState.productoId = Number(item.producto_id);
+  ratingState.estrellas = 0;
+  ratingState.submitting = false;
+  ratingModalContainer.querySelector('[data-rating-title]').textContent = `Calificar ${item.producto_nombre || 'producto'}`;
+  ratingModalContainer.querySelector('[data-rating-message]').textContent = '';
+  ratingModalContainer._refreshRatingUi();
+  ratingModalContainer.classList.remove('hidden');
+}
+
+function setupProductRating(orderId, orderDetails) {
+  const itemsBox = document.querySelector('[data-order-items]');
+  if (!itemsBox) return;
+  itemsBox.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-rate-btn]');
+    if (!trigger || trigger.disabled) return;
+    const detalleId = Number(trigger.dataset.detalleId);
+    const item = (orderDetails || []).find(d => Number(d.id) === detalleId);
+    if (!item) return;
+    openRatingModal(item, orderId);
   });
 }
 
@@ -444,7 +567,10 @@ async function initOrderDetail() {
     if (itemsBox) {
       const items = order.details || order.items || [];
       if (items.length) {
-        itemsBox.innerHTML = items.map(it => `
+        itemsBox.innerHTML = items.map(it => {
+          const alreadyRated = ratedProductLines.has(Number(it.id));
+          const rateButton = `<button type="button" class="cc-btn cc-btn-secondary text-xs mt-1 px-2 py-1 rounded-lg" data-rate-btn data-detalle-id="${Number(it.id)}" ${alreadyRated ? 'disabled' : ''}>${alreadyRated ? 'Ya calificado' : 'Calificar producto'}</button>`;
+          return `
           <tr>
             <td class="py-3 px-2 font-medium text-slate-900 dark:text-white flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
@@ -453,16 +579,19 @@ async function initOrderDetail() {
               <div class="flex flex-col">
                 <span>${escapeHtml(it.producto_nombre || 'Producto')}</span>
                 ${it.tienda_nombre ? `<span class="text-xs text-slate-500">${escapeHtml(it.tienda_nombre)}</span>` : ''}
+                ${rateButton}
               </div>
             </td>
             <td class="py-3 px-2 text-center">${escapeHtml(String(it.cantidad || 1))}</td>
             <td class="py-3 px-2 text-right">${money(it.precio_unitario || 0)}</td>
             <td class="py-3 px-2 text-right font-bold text-[#fa8000]">${money(it.subtotal || 0)}</td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
       } else {
         itemsBox.innerHTML = `<tr><td colspan="4" class="text-center py-4">No hay productos en el detalle.</td></tr>`;
       }
+      setupProductRating(id, items);
     }
 
     setupReturnRequest({ orderId: id, orderDetails: order.details || order.items || [], shipments: orderShipments });
