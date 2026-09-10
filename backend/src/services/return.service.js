@@ -70,8 +70,23 @@ async function sellerUpdate(user, id, payload, meta = {}) {
 async function adminResolve(user, id, payload, meta = {}) {
   if (user.rol !== 'administrador') throw err('Solo administradores pueden resolver devoluciones.', 403);
   if (!ADMIN_STATES.includes(payload.estado)) throw err('Estado no permitido para administrador.', 400);
-  const row = await model.findById(id); if (!row) throw err('Solicitud de devolución no encontrada.', 404);
-  const updated = await model.updateAdmin(id, payload); const sellerId = await model.sellerForStore(row.tienda_id);
+  let row, updated;
+  if (payload.estado === 'reembolso_simulado') {
+    const conn = await model.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      row = await model.findByIdForUpdate(id, conn);
+      if (!row) throw err('Solicitud de devolución no encontrada.', 404);
+      if (!(await model.findRefundByReturnId(row.id, conn))) await model.createSimulatedRefund(conn, { devolucion_id: row.id, pedido_id: row.pedido_id, monto: row.monto_estimado });
+      await model.updateAdmin(id, payload, conn);
+      await conn.commit();
+    } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+    updated = await model.findById(id);
+  } else {
+    row = await model.findById(id); if (!row) throw err('Solicitud de devolución no encontrada.', 404);
+    updated = await model.updateAdmin(id, payload);
+  }
+  const sellerId = await model.sellerForStore(row.tienda_id);
   await notificationService.create(null, row.comprador_id, { tipo:'devolucion_resuelta', titulo:statusTitle(payload.estado), mensaje:payload.respuesta_admin || 'El administrador actualizó tu devolución.', entidad_tipo:'devolucion', entidad_id:id });
   await notificationService.create(null, sellerId, { tipo:'devolucion_resuelta', titulo:statusTitle(payload.estado), mensaje:'El administrador actualizó una devolución de tu tienda.', entidad_tipo:'devolucion', entidad_id:id });
   await logService.log(null, { usuario_id:user.id, accion: payload.estado === 'reembolso_simulado' ? 'reembolso_simulado' : 'devolucion_resuelta_admin', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
