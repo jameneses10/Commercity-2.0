@@ -1,5 +1,5 @@
 const { pool } = require('../config/database');
-async function orderForBuyer(orderId, buyerId, conn = pool) { const [r] = await conn.query('SELECT * FROM pedidos WHERE id=? AND comprador_id=? LIMIT 1', [orderId, buyerId]); return r[0] || null; }
+async function orderForBuyer(orderId, buyerId, conn = pool) { const [r] = await conn.query('SELECT * FROM pedidos WHERE id=? AND comprador_id=? LIMIT 1 FOR UPDATE', [orderId, buyerId]); return r[0] || null; }
 async function detailsForOrder(orderId, detailIds, conn = pool) {
   const ids = detailIds.map(Number);
   if (!ids.length) return [];
