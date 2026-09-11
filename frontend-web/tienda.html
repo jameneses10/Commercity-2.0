@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perfil de tienda | CommerCity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="tienda">
+<main class="cc-container cc-section" data-store-page>
+
+  <div class="cc-card cc-loading-card" data-store-loading>Cargando tienda...</div>
+
+  <section class="cc-card cc-empty-state hidden" data-store-error>
+    <img class="cc-icon-lg" src="assets/icons/cc-store.svg" alt="">
+    <h1 class="text-3xl font-bold" data-store-error-title>Tienda no encontrada.</h1>
+    <p class="cc-muted" data-store-error-message>No pudimos cargar esta tienda.</p>
+    <a class="cc-btn outline" href="productos.html">Volver al catálogo</a>
+  </section>
+
+  <div class="hidden" data-store-content>
+    <section class="cc-grid cols-2">
+      <article class="cc-card">
+        <img class="cc-icon-lg" data-store-logo src="assets/icons/cc-store.svg" alt="">
+        <h1 class="text-4xl font-bold mt-4" data-store-name></h1>
+        <p class="cc-muted mt-3" data-store-description></p>
+      </article>
+      <article class="cc-card">
+        <span class="cc-chip orange">Reputación de la tienda</span>
+        <p class="cc-price mt-4" data-store-reputation></p>
+        <p class="mt-2">Nivel: <b data-store-level></b></p>
+        <p class="cc-muted mt-2" data-store-review-count></p>
+        <p class="cc-muted mt-2 hidden" data-store-reputation-error>Reputación no disponible por el momento.</p>
+      </article>
+    </section>
+
+    <section class="cc-card mt-5">
+      <h2 class="text-2xl font-bold">Productos activos</h2>
+      <div class="cc-grid cols-2 mt-4" data-store-products></div>
+      <p class="cc-muted mt-3 hidden" data-store-products-empty>Esta tienda aún no tiene productos activos.</p>
+      <p class="cc-muted mt-3 hidden" data-store-products-error>No pudimos cargar los productos de esta tienda.</p>
+    </section>
+  </div>
+
+</main>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/store.js"></script>
+</body>
+</html>
