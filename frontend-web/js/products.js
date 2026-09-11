@@ -37,6 +37,36 @@ function normalizeList(data, key) {
   return [];
 }
 
+function reviewStarCount(value){
+  const parsed = Math.round(Number(value));
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(5, parsed));
+}
+
+function reviewStars(value){
+  const stars = reviewStarCount(value);
+  return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
+function formatReviewDate(value){
+  if (!value) return 'Fecha no disponible';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Fecha no disponible';
+  return date.toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function reviewCard(review){
+  const stars = reviewStarCount(review.estrellas);
+  const comment = String(review.comentario ?? '').trim();
+  return `<article class="cc-card cc-review-card"><p class="cc-stars" aria-label="Calificación ${stars} de 5">${reviewStars(review.estrellas)}</p><p class="cc-muted">${esc(review.comprador_nombre || 'Comprador')} · ${esc(formatReviewDate(review.created_at))}</p>${comment ? `<p>${esc(comment)}</p>` : ''}</article>`;
+}
+
+function reviewsSectionHtml(reviews){
+  const header = `<h2 class="text-2xl font-bold">Reseñas aprobadas (${reviews.length})</h2>`;
+  if (!reviews.length) return `${header}<p class="cc-muted">Aún no hay reseñas aprobadas para este producto.</p>`;
+  return `${header}<div class="cc-grid cols-2 mt-4">${reviews.map(reviewCard).join('')}</div>`;
+}
+
 function productCategoryId(product){ return String(product.categoria_id || product.category_id || product.id_categoria || ''); }
 function productCategoryName(product){ return String(product.categoria_nombre || product.category_name || product.categoria || product.categoria_slug || 'Categoría general'); }
 function productStoreName(product){ return String(product.tienda_nombre || product.vendedor_nombre || product.store_name || product.seller_name || 'Tienda CommerCity'); }
@@ -441,6 +471,17 @@ export async function loadCategories() {
   if (box) box.innerHTML = catalogCategories.slice(0, 12).map(categoryCard).join('');
 }
 
+async function loadProductReviews(box, id) {
+  const reviewBox = box.querySelector('[data-product-reviews]');
+  if (!reviewBox) return;
+  try {
+    const data = await api.get(`/products/${encodeURIComponent(id)}/reviews`);
+    reviewBox.innerHTML = reviewsSectionHtml(normalizeList(data, 'reviews'));
+  } catch(error) {
+    reviewBox.innerHTML = `<h2 class="text-2xl font-bold">Reseñas aprobadas</h2><p class="cc-muted">No fue posible cargar las reseñas de este producto.</p>`;
+  }
+}
+
 export async function loadProductDetail() {
   const box = document.querySelector('[data-product-detail]');
   if (!box) return;
@@ -453,11 +494,12 @@ export async function loadProductDetail() {
   try {
     const data = await api.get(`/products/${encodeURIComponent(id)}`);
     const p = data.data?.product || data.product || data.producto || data.data || data;
-    box.innerHTML = `<div class="cc-grid cols-2"><section class="cc-card"><div class="cc-product-media h-96"><img src="${esc(productImage(p))}" alt="${esc(p.nombre || 'Producto CommerCity')}"></div></section><section class="cc-card"><span class="cc-chip orange">Producto real</span><h1 class="text-4xl font-bold mt-4">${esc(p.nombre || 'Producto CommerCity')}</h1><p class="cc-muted mt-3">${esc(p.descripcion || 'Producto publicado por vendedor verificado.')}</p><p class="cc-price mt-5">${money(productPrice(p))}</p><p class="mt-2">Stock: <b>${esc(p.stock ?? 'Disponible')}</b></p><p class="cc-muted mt-2">Categoría: <b>${esc(productCategoryName(p))}</b></p><p class="cc-muted mt-2">Tienda: <b>${esc(productStoreName(p))}</b></p><div class="grid md:grid-cols-3 gap-3 mt-6"><button class="cc-btn" data-cart="${esc(p.id || id)}"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-orange cc-icon" style="--cc-icon-url:url('/assets/icons/cc-add-shopping-cart.svg')" data-icon-name="cc-add-shopping-cart.svg" data-product-cart-icon aria-hidden="true"></span></span>Añadir al carrito</button><button class="cc-btn outline" data-favorite="${esc(p.id || id)}" type="button"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-red cc-icon" style="--cc-icon-url:url('/assets/icons/cc-favorites-wishlist.svg')" data-icon-name="cc-favorites-wishlist.svg" data-product-favorite-icon aria-hidden="true"></span></span>Favorito</button><a class="cc-btn secondary" href="chat.html">Consultar vendedor</a></div></section></div>`;
+    box.innerHTML = `<div class="cc-grid cols-2"><section class="cc-card"><div class="cc-product-media h-96"><img src="${esc(productImage(p))}" alt="${esc(p.nombre || 'Producto CommerCity')}"></div></section><section class="cc-card"><span class="cc-chip orange">Producto real</span><h1 class="text-4xl font-bold mt-4">${esc(p.nombre || 'Producto CommerCity')}</h1><p class="cc-muted mt-3">${esc(p.descripcion || 'Producto publicado por vendedor verificado.')}</p><p class="cc-price mt-5">${money(productPrice(p))}</p><p class="mt-2">Stock: <b>${esc(p.stock ?? 'Disponible')}</b></p><p class="cc-muted mt-2">Categoría: <b>${esc(productCategoryName(p))}</b></p><p class="cc-muted mt-2">Tienda: <b>${esc(productStoreName(p))}</b></p><div class="grid md:grid-cols-3 gap-3 mt-6"><button class="cc-btn" data-cart="${esc(p.id || id)}"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-orange cc-icon" style="--cc-icon-url:url('/assets/icons/cc-add-shopping-cart.svg')" data-icon-name="cc-add-shopping-cart.svg" data-product-cart-icon aria-hidden="true"></span></span>Añadir al carrito</button><button class="cc-btn outline" data-favorite="${esc(p.id || id)}" type="button"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-red cc-icon" style="--cc-icon-url:url('/assets/icons/cc-favorites-wishlist.svg')" data-icon-name="cc-favorites-wishlist.svg" data-product-favorite-icon aria-hidden="true"></span></span>Favorito</button><a class="cc-btn secondary" href="chat.html">Consultar vendedor</a></div></section></div><section class="cc-card mt-5" data-product-reviews><h2 class="text-2xl font-bold">Reseñas aprobadas</h2><p class="cc-muted">Cargando reseñas...</p></section>`;
     catalogProducts=[p];
     bindProductActions();
     await syncFavoriteButtons();
     await syncProductCartIcons();
+    await loadProductReviews(box, id);
   } catch(error) {
     box.innerHTML = `<section class="cc-card cc-empty-state"><img class="cc-icon-lg" src="assets/icons/cc-product-detail.svg" alt=""><h1 class="text-3xl font-bold">No pudimos cargar este producto.</h1><p class="cc-muted">${esc(error.message)}</p><a class="cc-btn outline" href="productos.html">Volver al catálogo</a></section>`;
   }
