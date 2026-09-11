@@ -8,11 +8,19 @@ async function createReview(user,body,ip){
  if(!(await shipmentModel.isDeliveredForProductOrder(producto_id,pedido_id))) throw err('Solo se puede reseñar cuando el envío fue entregado.',409);
  if(await reviewModel.duplicate(producto_id,user.id,pedido_id)) throw err('Ya existe una reseña para este producto en este pedido.',409);
  const conn=await pool.getConnection(); let r;
- try{ await conn.beginTransaction(); await conn.query('SELECT id FROM productos WHERE id=? FOR UPDATE',[producto_id]); r=await reviewModel.create({producto_id,comprador_id:user.id,pedido_id,estrellas,comentario},conn); await reputation.recalcProduct(producto_id,conn); await conn.commit(); }
+ try{ await conn.beginTransaction(); await conn.query('SELECT id FROM productos WHERE id=? FOR UPDATE',[producto_id]); await conn.query('SELECT id FROM tiendas WHERE id=? FOR UPDATE',[detail.tienda_id]); r=await reviewModel.create({producto_id,comprador_id:user.id,pedido_id,estrellas,comentario},conn); await reputation.recalcProduct(producto_id,conn); await reputation.recalcStore(detail.tienda_id,conn); await conn.commit(); }
  catch(e){ await conn.rollback(); throw e; }
  finally{ conn.release(); }
- await reputation.recalcStore(detail.tienda_id); await notification.create(null,detail.vendedor_id,{tipo:'nueva_resena',titulo:'Nueva reseña recibida',mensaje:`Recibiste una reseña de ${estrellas} estrellas.`}); await logService.log(null,{usuario_id:user.id,accion:'resena_creada',entidad:'resenas',entidad_id:r.id,detalle:{producto_id,pedido_id},ip}); return r;
+ await notification.create(null,detail.vendedor_id,{tipo:'nueva_resena',titulo:'Nueva reseña recibida',mensaje:`Recibiste una reseña de ${estrellas} estrellas.`}); await logService.log(null,{usuario_id:user.id,accion:'resena_creada',entidad:'resenas',entidad_id:r.id,detalle:{producto_id,pedido_id},ip}); return r;
 }
 async function listProduct(productId){ return reviewModel.listApproved(productId); }
-async function moderate(admin,id,estado,ip){ const r=await reviewModel.findById(id); if(!r) throw err('Reseña no encontrada.',404); const updated=await reviewModel.updateStatus(id,estado); const [[p]]=await pool.query('SELECT tienda_id FROM productos WHERE id=?',[r.producto_id]); await reputation.recalcProduct(r.producto_id); if(p) await reputation.recalcStore(p.tienda_id); await logService.log(null,{usuario_id:admin.id,accion:'resena_moderada',entidad:'resenas',entidad_id:id,detalle:{estado},ip}); return updated; }
+async function moderate(admin,id,estado,ip){
+ const r=await reviewModel.findById(id); if(!r) throw err('Reseña no encontrada.',404);
+ const [[p]]=await pool.query('SELECT tienda_id FROM productos WHERE id=?',[r.producto_id]); if(!p) throw err('Reseña no encontrada.',404);
+ const conn=await pool.getConnection(); let updated;
+ try{ await conn.beginTransaction(); await conn.query('SELECT id FROM productos WHERE id=? FOR UPDATE',[r.producto_id]); await conn.query('SELECT id FROM tiendas WHERE id=? FOR UPDATE',[p.tienda_id]); updated=await reviewModel.updateStatus(id,estado,conn); await reputation.recalcProduct(r.producto_id,conn); await reputation.recalcStore(p.tienda_id,conn); await conn.commit(); }
+ catch(e){ await conn.rollback(); throw e; }
+ finally{ conn.release(); }
+ await logService.log(null,{usuario_id:admin.id,accion:'resena_moderada',entidad:'resenas',entidad_id:id,detalle:{estado},ip}); return updated;
+}
 module.exports={createReview,listProduct,moderate};
