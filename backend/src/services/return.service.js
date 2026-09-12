@@ -71,6 +71,7 @@ async function sellerUpdate(user, id, payload, meta = {}) {
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
   const row = await model.findById(id);
   await notificationService.create(null, row.comprador_id, { tipo:'devolucion_actualizada', titulo:statusTitle(payload.estado), mensaje:payload.respuesta_vendedor || 'El vendedor actualizó tu solicitud.', entidad_tipo:'devolucion', entidad_id:id });
+  await notificationService.create(null, user.id, { tipo:'devolucion_actualizada', titulo:statusTitle(payload.estado), mensaje:'Actualizaste el estado de una devolución de tu tienda.', entidad_tipo:'devolucion', entidad_id:id });
   return { return: await model.hydrate(row) };
 }
 async function adminResolve(user, id, payload, meta = {}) {
