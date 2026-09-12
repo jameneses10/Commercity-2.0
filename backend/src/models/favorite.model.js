@@ -30,4 +30,9 @@ async function list(userId) {
     ORDER BY f.creado_en DESC`, [userId]);
   return rows;
 }
-module.exports = { pool, findActiveProduct, add, remove, exists, list };
+async function listFavoriterIds(productId, conn) {
+  const db = conn || pool;
+  const [rows] = await db.query('SELECT usuario_id FROM favoritos WHERE producto_id=? ORDER BY usuario_id', [productId]);
+  return rows.map((r) => Number(r.usuario_id));
+}
+module.exports = { pool, findActiveProduct, add, remove, exists, list, listFavoriterIds };

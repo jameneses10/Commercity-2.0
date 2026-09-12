@@ -2,8 +2,16 @@ const productModel = require('../models/product.model');
 const storeModel = require('../models/store.model');
 const categoryModel = require('../models/category.model');
 const { createSlug } = require('../utils/slug');
+const favoriteService = require('./favorite.service');
 
 function httpError(message, statusCode) { const e = new Error(message); e.statusCode = statusCode; return e; }
+function toCents(value) { return Math.round(Number(value) * 100); }
+function detectFavoriteStateEvents(before, after) {
+  const events = [];
+  if (before.estado !== 'agotado' && after.estado === 'agotado') events.push('agotado');
+  if (before.estado !== 'oculto' && after.estado === 'oculto') events.push('desactivado');
+  return events;
+}
 
 async function getSellerActiveStore(userId) {
   const store = await storeModel.findStoreBySellerId(userId);
@@ -112,6 +120,9 @@ async function updateProduct(user, productId, payload, images = []) {
   const finalState = data.estado !== undefined ? data.estado : product.estado;
   data.estado = normalizeProductState(finalStock, finalState);
   const updated = await productModel.updateProductById(product.id, data);
+  const events = detectFavoriteStateEvents(product, updated);
+  if (toCents(product.precio_final) !== toCents(updated.precio_final)) events.push('precio');
+  if (events.length) await favoriteService.notifyFavoriteProductEvents(null, updated, events);
   if (images.length) await productModel.addProductImages(product.id, images);
   return productModel.findProductById(updated.id);
 }
@@ -130,7 +141,10 @@ async function changeProductVisibility(user, productId, estado) {
   const product = await productModel.findProductById(productId);
   await assertProductPermission(product, user);
   if (estado === 'activo' && Number(product.stock) === 0) throw httpError('No se puede activar un producto sin stock.', 409);
-  return productModel.updateProductById(product.id, { estado });
+  const updated = await productModel.updateProductById(product.id, { estado });
+  const events = detectFavoriteStateEvents(product, updated);
+  if (events.length) await favoriteService.notifyFavoriteProductEvents(null, updated, events);
+  return updated;
 }
 
 async function logicalDeleteProduct(user, productId) {
