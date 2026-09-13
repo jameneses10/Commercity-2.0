@@ -308,8 +308,26 @@ async function loadNotifications(){
   catch(error){ box.innerHTML=empty('cc-notifications.svg','No pudimos cargar notificaciones.',escHtml(safe(error?.message, 'Error desconocido'))); syncHeaderNotificationIcon(0); }
   bindNotificationFilters();
 }
+async function notificationSession(){
+  const box=document.querySelector('[data-notifications-list]');
+  if(!token()){
+    if(box) box.innerHTML=empty('cc-notifications.svg','Sesión requerida.','Inicia sesión para consultar tus notificaciones.','<a class="cc-btn mt-3" href="login.html">Ir a login</a>');
+    return null;
+  }
+  try{
+    const data=await api.get('/auth/me');
+    const user=data?.data?.user || data?.user;
+    if(!user) throw new Error('Sesión no válida.');
+    updateStoredUser(user);
+    return user;
+  }catch(error){
+    if(box) box.innerHTML=empty('cc-notifications.svg','No pudimos validar tu sesión.',escHtml(safe(error?.message,'Error desconocido')),'<a class="cc-btn mt-3" href="login.html">Volver a iniciar sesión</a>');
+    return null;
+  }
+}
 async function initNotifications(){
-  await buyerSession(); await loadNotifications();
+  const user=await notificationSession(); if(!user) return;
+  await loadNotifications();
   document.addEventListener('click',async event=>{ const btn=event.target.closest('[data-read-notification]'); if(!btn) return; try{ await api.patch(`/notifications/${btn.dataset.readNotification}/read`,{}); await loadNotifications(); }catch(error){ console.warn(error.message); } });
   document.querySelector('[data-read-all]')?.addEventListener('click',async()=>{ try{ await api.patch('/notifications/read-all',{}); await loadNotifications(); }catch(error){ console.warn(error.message); } });
 }
