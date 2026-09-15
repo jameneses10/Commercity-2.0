@@ -295,18 +295,25 @@ function notificationCard(n){
   const read=notificationRead(n); const type=notificationType(n);
   return `<article class="cc-card cc-notification-card ${read?'':'unread'}" data-kind="${escHtml(type)}" data-status="${read?'read':'unread'}" data-notification-id="${escHtml(safe(n.id))}"><span class="cc-status-dot ${read?'blue':'green'}"></span><div><b>${escHtml(safe(n.titulo,'Notificación'))}</b><p class="cc-muted">${escHtml(safe(n.mensaje,'Mensaje de CommerCity'))}</p><small>${n.created_at ? new Date(n.created_at).toLocaleString('es-CO') : 'Fecha no disponible'} · ${read?'Leída':'No leída'}</small><div class="cc-card-actions-row mt-3"><button class="cc-btn outline" data-read-notification="${escHtml(safe(n.id))}" type="button">Marcar leída</button><button class="cc-btn secondary" data-delete-notification="${escHtml(safe(n.id))}" type="button">Eliminar</button></div></div></article>`;
 }
+const NOTIFICATION_POLL_INTERVAL_MS=30000;
 function bindNotificationFilters(){
   const group=document.querySelector('[data-filter-group="notifications"]'); const box=document.querySelector('[data-notifications-list]'); if(!group||!box) return;
   const map={orders:['orders','pedido','pedidos'], pagos:['pagos','pago','payment'], envios:['envios','envio','shipment'], devoluciones:['devoluciones','devolucion','return'], system:['system','sistema']};
   const apply=()=>{ const filter=group.querySelector('.active')?.dataset.filter || 'all'; let visible=0; box.querySelectorAll('.cc-notification-card').forEach(card=>{ const kind=card.dataset.kind; const status=card.dataset.status; const show=filter==='all'||(filter==='unread'&&status==='unread')||(map[filter]||[filter]).includes(kind); card.classList.toggle('hidden',!show); if(show) visible++; }); document.querySelector('[data-empty-state]')?.classList.toggle('hidden',visible>0); };
-  group.querySelectorAll('[data-filter]').forEach(btn=>btn.addEventListener('click',()=>{ group.querySelectorAll('[data-filter]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); apply(); })); apply();
+  if(group.dataset.notificationFiltersBound!=='true'){ group.querySelectorAll('[data-filter]').forEach(btn=>btn.addEventListener('click',()=>{ group.querySelectorAll('[data-filter]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); apply(); })); group.dataset.notificationFiltersBound='true'; }
+  apply();
 }
-async function loadNotifications(){
-  const box=document.querySelector('[data-notifications-list]'); if(!box) return;
-  box.innerHTML='<section class="cc-card cc-loading-card">Cargando notificaciones reales...</section>';
+async function loadNotifications({background=false}={}){
+  const box=document.querySelector('[data-notifications-list]'); if(!box) return {ok:false,status:0};
+  if(!background) box.innerHTML='<section class="cc-card cc-loading-card">Cargando notificaciones reales...</section>';
+  let result={ok:true,status:0};
   try{ const data=await api.get('/notifications'); const list=data?.data?.notifications || data?.notifications || []; box.innerHTML=list.length ? list.map(notificationCard).join('') : empty('cc-notifications.svg','No tienes notificaciones.','Los avisos reales de pedidos, pagos y sistema aparecerán aquí.'); syncHeaderNotificationIcon(list.filter(n=>!notificationRead(n)).length); }
-  catch(error){ box.innerHTML=empty('cc-notifications.svg','No pudimos cargar notificaciones.',escHtml(safe(error?.message, 'Error desconocido'))); syncHeaderNotificationIcon(0); }
+  catch(error){ result={ok:false,status:Number(error?.status)||0}; if(background) console.warn(error.message); else { box.innerHTML=empty('cc-notifications.svg','No pudimos cargar notificaciones.',escHtml(safe(error?.message, 'Error desconocido'))); syncHeaderNotificationIcon(0); } }
   bindNotificationFilters();
+  return result;
+}
+function scheduleNotificationPoll(){
+  setTimeout(async()=>{ const result=await loadNotifications({background:true}); if(result?.status===401) return; scheduleNotificationPoll(); },NOTIFICATION_POLL_INTERVAL_MS);
 }
 async function notificationSession(){
   const box=document.querySelector('[data-notifications-list]');
@@ -331,6 +338,7 @@ async function initNotifications(){
   document.addEventListener('click',async event=>{ const btn=event.target.closest('[data-read-notification]'); if(!btn) return; try{ await api.patch(`/notifications/${btn.dataset.readNotification}/read`,{}); await loadNotifications(); }catch(error){ console.warn(error.message); } });
   document.addEventListener('click',async event=>{ const btn=event.target.closest('[data-delete-notification]'); if(!btn) return; try{ await api.delete(`/notifications/${btn.dataset.deleteNotification}`); await loadNotifications(); }catch(error){ console.warn(error.message); } });
   document.querySelector('[data-read-all]')?.addEventListener('click',async()=>{ try{ await api.patch('/notifications/read-all',{}); await loadNotifications(); }catch(error){ console.warn(error.message); } });
+  scheduleNotificationPoll();
 }
 
 async function initDashboard(){
