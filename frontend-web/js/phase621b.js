@@ -155,6 +155,7 @@ function initActions(){
   document.addEventListener('click', event=>{
     const btn=event.target.closest('button');
     if(!btn) return;
+    if(btn.dataset.userStatus) return;
     const item=btn.closest('[data-admin-item],[data-seller-item]');
     const text=norm(btn.textContent);
     if(!item){
