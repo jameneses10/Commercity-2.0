@@ -142,6 +142,31 @@ async function adminCommissions({ limit=50, page=1, pedido_id, vendedor_id, fech
   );
   return { commissions, pagination:{page,limit} };
 }
+async function adminProducts({ store_id, category_id, estado, vendedor_id, limit=50, page=1 }) {
+  limit = Math.min(Math.max(parseInt(limit,10)||50,1),100); page = Math.max(parseInt(page,10)||1,1);
+  const where=[]; const params=[];
+  if (store_id!==undefined) { where.push('p.tienda_id = ?'); params.push(store_id); }
+  if (category_id!==undefined) { where.push('p.categoria_id = ?'); params.push(category_id); }
+  if (estado!==undefined) { where.push('p.estado = ?'); params.push(estado); }
+  if (vendedor_id!==undefined) { where.push('u.id = ?'); params.push(vendedor_id); }
+  params.push(limit, (page-1)*limit);
+  const [products] = await pool.query(
+    `SELECT p.id, p.tienda_id, p.categoria_id, p.nombre, p.slug, p.precio, p.precio_anterior,
+            p.descuento_porcentaje, p.stock, p.estado, p.imagen_url, p.calificacion_promedio,
+            p.total_resenas, p.reportado, p.total_reportes, p.created_at,
+            t.nombre AS tienda_nombre, t.estado AS tienda_estado,
+            c.nombre AS categoria_nombre,
+            u.id AS vendedor_id, u.nombre AS vendedor_nombre, u.correo AS vendedor_correo
+       FROM productos p
+       INNER JOIN tiendas t ON t.id = p.tienda_id
+       INNER JOIN usuarios u ON u.id = t.usuario_id
+       INNER JOIN categorias c ON c.id = p.categoria_id
+      ${where.length ? 'WHERE '+where.join(' AND ') : ''}
+      ORDER BY p.created_at DESC
+      LIMIT ? OFFSET ?`, params
+  );
+  return { products, pagination: { page, limit } };
+}
 async function updateCommissionStatus(id, estado) {
   if (!['pendiente','pagada','revisada','rechazada'].includes(estado)) { const e=new Error('Estado de comisión no permitido.'); e.statusCode=400; throw e; }
   const [[commission]] = await pool.query('SELECT * FROM comisiones WHERE id=? LIMIT 1', [id]);
@@ -150,4 +175,4 @@ async function updateCommissionStatus(id, estado) {
   const [[updated]] = await pool.query('SELECT *, subtotal_tienda AS valor_venta FROM comisiones WHERE id=?', [id]);
   return updated;
 }
-module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,updateCommissionStatus};
+module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,adminProducts,updateCommissionStatus};

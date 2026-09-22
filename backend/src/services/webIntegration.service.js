@@ -25,6 +25,11 @@ function normalizeDateOnly(value, fieldLabel){
   if(Number.isNaN(d.getTime()) || d.toISOString().slice(0,10)!==value){ const e=new Error(`${fieldLabel} inválida.`); e.statusCode=400; throw e; }
   return value;
 }
+function normalizeProductStateFilter(value){
+  if(value===undefined) return undefined;
+  if(!['activo','agotado','oculto','eliminado'].includes(value)){ const e=new Error('estado inválido.'); e.statusCode=400; throw e; }
+  return value;
+}
 function normalizeAdminCommissionFilters(query){
   const pedido_id = normalizePositiveIntFilter(query.pedido_id, 'pedido_id');
   const vendedor_id = normalizePositiveIntFilter(query.vendedor_id, 'vendedor_id');
@@ -47,6 +52,13 @@ async function adminCommissions(query){
   const filters = normalizeAdminCommissionFilters(query);
   return model.adminCommissions({ limit: query.limit, page: query.page, ...filters });
 }
+async function adminProducts(query){
+  const store_id = normalizePositiveIntFilter(query.store_id, 'store_id');
+  const category_id = normalizePositiveIntFilter(query.category_id, 'category_id');
+  const vendedor_id = normalizePositiveIntFilter(query.vendedor_id, 'vendedor_id');
+  const estado = normalizeProductStateFilter(query.estado);
+  return model.adminProducts({ limit: query.limit, page: query.page, store_id, category_id, vendedor_id, estado });
+}
 async function updateCommissionStatus(admin, commissionId, body, ip){
   const updated = await model.updateCommissionStatus(id(commissionId), body.estado);
   await logService.log(null,{usuario_id:admin.id,accion:'comision_estado_actualizado',entidad:'comisiones',entidad_id:updated.id,detalle:{estado:body.estado},ip});
@@ -59,4 +71,4 @@ async function updateAdminCommissionSettings(admin, body, ip){
   await logService.log(null,{usuario_id:admin.id,accion:'comision_plataforma_actualizada',entidad:'configuracion_plataforma',entidad_id:updated.id,detalle:{porcentaje_comision:porcentaje},ip});
   return updated;
 }
-module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,updateCommissionStatus,adminCommissionSettings,updateAdminCommissionSettings};
+module.exports={sellerProducts,sellerReviews,sellerReputation,sellerCommissions,adminStores,adminPayments,adminShipments,adminReviews,adminCommissions,adminProducts,updateCommissionStatus,adminCommissionSettings,updateAdminCommissionSettings};

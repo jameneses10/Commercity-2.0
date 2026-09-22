@@ -11,5 +11,6 @@ router.get('/reviews', controller.adminReviews);
 router.get('/settings/commission', controller.adminCommissionSettings);
 router.patch('/settings/commission', controller.updateAdminCommissionSettings);
 router.get('/commissions', controller.adminCommissions);
+router.get('/products', controller.adminProducts);
 router.patch('/commissions/:id/status', controller.updateCommissionStatus);
 module.exports = router;
