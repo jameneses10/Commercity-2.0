@@ -14,7 +14,7 @@ async function listBuyer(userId){
  });
  return orders.map(order=>({...order,tiendas:storesByOrder.get(String(order.id)) || []}));
 }
-async function listAll(){ const [r]=await pool.query('SELECT * FROM pedidos ORDER BY created_at DESC'); return r; }
+async function listAll(tiendaId){ if(tiendaId!==undefined){ const [r]=await pool.query('SELECT DISTINCT p.* FROM pedidos p INNER JOIN pedido_detalles d ON d.pedido_id=p.id WHERE d.tienda_id=? ORDER BY p.created_at DESC',[tiendaId]); return r; } const [r]=await pool.query('SELECT * FROM pedidos ORDER BY created_at DESC'); return r; }
 async function sellerParticipates(orderId,sellerId){ const [[r]]=await pool.query(`SELECT COUNT(*) total FROM pedido_detalles d INNER JOIN tiendas t ON t.id=d.tienda_id WHERE d.pedido_id=? AND t.usuario_id=?`,[orderId,sellerId]); return r.total>0; }
 async function listSeller(sellerId){ const [r]=await pool.query(`SELECT DISTINCT p.* FROM pedidos p INNER JOIN pedido_detalles d ON d.pedido_id=p.id INNER JOIN tiendas t ON t.id=d.tienda_id WHERE t.usuario_id=? ORDER BY p.created_at DESC`,[sellerId]); return r; }
 async function lockOrder(conn,id){ const [r]=await conn.query('SELECT * FROM pedidos WHERE id=? FOR UPDATE',[id]); return r[0]||null; }
