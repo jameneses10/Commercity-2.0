@@ -12,7 +12,7 @@ router.get('/', listProductsValidator, controller.list);
 router.get('/:id/reviews', reviewController.listProduct);
 router.get('/:id', controller.getById);
 router.post('/', authRequired, requireRole('vendedor'), productUpload.array('images', 6), multerErrorHandler, createProductValidator, controller.create);
-router.patch('/:id', authRequired, requireRole('vendedor'), productUpload.array('images', 6), multerErrorHandler, updateProductValidator, controller.update);
+router.patch('/:id', authRequired, requireRole('vendedor', 'administrador'), productUpload.array('images', 6), multerErrorHandler, updateProductValidator, controller.update);
 router.delete('/:id/images/:imageId', authRequired, requireRole('vendedor', 'administrador'), controller.deleteImage);
 router.patch('/:id/visibility', authRequired, requireRole('vendedor', 'administrador'), visibilityValidator, controller.visibility);
 router.delete('/:id', authRequired, requireRole('vendedor', 'administrador'), controller.remove);

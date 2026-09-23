@@ -151,7 +151,7 @@ async function adminProducts({ store_id, category_id, estado, vendedor_id, limit
   if (vendedor_id!==undefined) { where.push('u.id = ?'); params.push(vendedor_id); }
   params.push(limit, (page-1)*limit);
   const [products] = await pool.query(
-    `SELECT p.id, p.tienda_id, p.categoria_id, p.nombre, p.slug, p.precio, p.precio_anterior,
+    `SELECT p.id, p.tienda_id, p.categoria_id, p.nombre, p.slug, p.descripcion, p.precio, p.precio_anterior,
             p.descuento_porcentaje, p.stock, p.estado, p.imagen_url, p.calificacion_promedio,
             p.total_resenas, p.reportado, p.total_reportes, p.created_at,
             t.nombre AS tienda_nombre, t.estado AS tienda_estado,
