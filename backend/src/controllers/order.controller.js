@@ -5,5 +5,5 @@ async function myOrders(req,res,next){try{res.json(successResponse('Pedidos del 
 async function getById(req,res,next){try{res.json(successResponse('Pedido obtenido correctamente.',{order:await service.getOrderForUser(req.params.id,req.user)}))}catch(e){next(e)}}
 async function getComprobante(req,res,next){try{res.json(successResponse('Comprobante obtenido correctamente.',{comprobante:await service.getComprobanteForUser(req.params.id,req.user)}))}catch(e){next(e)}}
 async function sellerOrders(req,res,next){try{res.json(successResponse('Pedidos del vendedor obtenidos correctamente.',{orders:await service.sellerOrders(req.user)}))}catch(e){next(e)}}
-async function adminOrders(req,res,next){try{if(val(req,res))return; res.json(successResponse('Pedidos administrativos obtenidos correctamente.',{orders:await service.adminOrders(req.query.tienda_id)}))}catch(e){next(e)}}
+async function adminOrders(req,res,next){try{if(val(req,res))return; res.json(successResponse('Pedidos administrativos obtenidos correctamente.',{orders:await service.adminOrders(req.query)}))}catch(e){next(e)}}
 module.exports={create,myOrders,getById,getComprobante,sellerOrders,adminOrders};

@@ -27,7 +27,7 @@ async function getOrderForUser(id,user){
 }
 async function myOrders(user){return orderModel.listBuyer(user.id)}
 async function sellerOrders(user){return orderModel.listSeller(user.id)}
-async function adminOrders(tiendaId){return orderModel.listAll(tiendaId)}
+async function adminOrders(filters){return orderModel.listAll(filters)}
 async function getComprobanteForUser(id,user){
  await getOrderForUser(id,user);
  const comprobante=await comprobanteModel.findDetailByPedidoId(id);
