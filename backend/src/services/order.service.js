@@ -27,7 +27,14 @@ async function getOrderForUser(id,user){
 }
 async function myOrders(user){return orderModel.listBuyer(user.id)}
 async function sellerOrders(user){return orderModel.listSeller(user.id)}
-async function adminOrders(filters){return orderModel.listAll(filters)}
+async function adminOrders(filters={}){
+ const {scope,tienda_id,comprador_id,vendedor_id,estado_pago,estado_envio,fecha}=filters;
+ const hasBusinessFilter=comprador_id!==undefined||vendedor_id!==undefined||estado_pago!==undefined||estado_envio!==undefined||fecha!==undefined;
+ if(scope==='all'&&tienda_id!==undefined) throw err('No puede combinar Todas las tiendas con una tienda específica.',400);
+ if(scope!=='all'&&tienda_id===undefined) throw err('Debe indicar una tienda específica o seleccionar Todas las tiendas.',400);
+ if(scope==='all'&&!hasBusinessFilter) throw err('Seleccionar Todas las tiendas requiere aplicar al menos un filtro.',400);
+ return orderModel.listAll(filters);
+}
 async function getComprobanteForUser(id,user){
  await getOrderForUser(id,user);
  const comprobante=await comprobanteModel.findDetailByPedidoId(id);
