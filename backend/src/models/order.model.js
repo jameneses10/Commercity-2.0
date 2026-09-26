@@ -16,11 +16,12 @@ async function listBuyer(userId){
 }
 function nextCalendarDay(fecha){ const [y,m,d]=fecha.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+1)).toISOString().slice(0,10); }
 async function listAll(filters={}){
-  const { tienda_id, comprador_id, vendedor_id, estado_pago, estado_envio, fecha } = filters;
+  const { tienda_id, comprador_id, vendedor_id, estado_pago, estado_envio, fecha, q, sort } = filters;
   const where=[]; const params=[];
   if (comprador_id!==undefined) { where.push('p.comprador_id = ?'); params.push(comprador_id); }
   if (estado_pago!==undefined) { where.push('p.estado_pago = ?'); params.push(estado_pago); }
   if (fecha!==undefined) { where.push('p.created_at >= ? AND p.created_at < ?'); params.push(`${fecha} 00:00:00`, `${nextCalendarDay(fecha)} 00:00:00`); }
+  if (q) { where.push('(u.nombre LIKE ? OR u.correo LIKE ?)'); params.push(`%${q}%`,`%${q}%`); }
   if (tienda_id!==undefined || vendedor_id!==undefined || estado_envio!==undefined) {
     const sub=['d.pedido_id = p.id'];
     if (tienda_id!==undefined) { sub.push('d.tienda_id = ?'); params.push(tienda_id); }
@@ -28,6 +29,7 @@ async function listAll(filters={}){
     if (estado_envio!==undefined) { sub.push('e.estado = ?'); params.push(estado_envio); }
     where.push(`EXISTS (SELECT 1 FROM pedido_detalles d INNER JOIN tiendas t ON t.id = d.tienda_id LEFT JOIN envios e ON e.pedido_id = d.pedido_id AND e.tienda_id = d.tienda_id WHERE ${sub.join(' AND ')})`);
   }
+  const orderBy = sort==='oldest' ? 'p.created_at ASC' : 'p.created_at DESC';
   const [orders] = await pool.query(
     `SELECT p.*, u.nombre AS comprador_nombre,
             (SELECT GROUP_CONCAT(DISTINCT t2.nombre ORDER BY t2.nombre SEPARATOR ', ') FROM pedido_detalles d2 INNER JOIN tiendas t2 ON t2.id = d2.tienda_id WHERE d2.pedido_id = p.id) AS tiendas_nombres,
@@ -36,7 +38,7 @@ async function listAll(filters={}){
        FROM pedidos p
        INNER JOIN usuarios u ON u.id = p.comprador_id
       ${where.length ? 'WHERE '+where.join(' AND ') : ''}
-      ORDER BY p.created_at DESC`, params
+      ORDER BY ${orderBy}`, params
   );
   return orders;
 }

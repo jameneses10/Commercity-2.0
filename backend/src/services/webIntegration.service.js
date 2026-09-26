@@ -30,6 +30,32 @@ function normalizeProductStateFilter(value){
   if(!['activo','agotado','oculto','eliminado'].includes(value)){ const e=new Error('estado inválido.'); e.statusCode=400; throw e; }
   return value;
 }
+function normalizeSearchFilter(value){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string'){ const e=new Error('q inválido.'); e.statusCode=400; throw e; }
+  const trimmed=value.trim();
+  if(trimmed==='') return undefined;
+  if(trimmed.length>120){ const e=new Error('q inválido.'); e.statusCode=400; throw e; }
+  return trimmed;
+}
+function normalizeSortFilter(value){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string'){ const e=new Error('sort inválido.'); e.statusCode=400; throw e; }
+  const trimmed=value.trim();
+  if(trimmed==='') return undefined;
+  if(!['newest','oldest'].includes(trimmed)){ const e=new Error('sort inválido.'); e.statusCode=400; throw e; }
+  return trimmed;
+}
+function normalizeStoreStatusFilter(value){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string' || !['activa','pausada','suspendida'].includes(value)){ const e=new Error('status inválido.'); e.statusCode=400; throw e; }
+  return value;
+}
+function normalizePaymentStateFilter(value){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string' || !['pendiente','aprobado','rechazado'].includes(value)){ const e=new Error('estado inválido.'); e.statusCode=400; throw e; }
+  return value;
+}
 function normalizeAdminCommissionFilters(query){
   const pedido_id = normalizePositiveIntFilter(query.pedido_id, 'pedido_id');
   const vendedor_id = normalizePositiveIntFilter(query.vendedor_id, 'vendedor_id');
@@ -44,8 +70,18 @@ async function sellerProducts(user){ return model.sellerProducts(user.id); }
 async function sellerReviews(user){ return model.sellerReviews(user.id); }
 async function sellerReputation(user){ return model.sellerReputation(user.id); }
 async function sellerCommissions(user){ return model.sellerCommissions(user.id); }
-async function adminStores(query){ return model.adminStores(query); }
-async function adminPayments(query){ return model.adminPayments(query); }
+async function adminStores(query){
+  const q = normalizeSearchFilter(query.q);
+  const status = normalizeStoreStatusFilter(query.status);
+  const sort = normalizeSortFilter(query.sort);
+  return model.adminStores({ limit: query.limit, page: query.page, q, status, sort });
+}
+async function adminPayments(query){
+  const q = normalizeSearchFilter(query.q);
+  const estado = normalizePaymentStateFilter(query.estado);
+  const sort = normalizeSortFilter(query.sort);
+  return model.adminPayments({ limit: query.limit, page: query.page, q, estado, sort });
+}
 async function adminShipments(query){ return model.adminShipments(query); }
 async function adminReviews(query){ return model.adminReviews(query); }
 async function adminCommissions(query){
@@ -57,7 +93,9 @@ async function adminProducts(query){
   const category_id = normalizePositiveIntFilter(query.category_id, 'category_id');
   const vendedor_id = normalizePositiveIntFilter(query.vendedor_id, 'vendedor_id');
   const estado = normalizeProductStateFilter(query.estado);
-  return model.adminProducts({ limit: query.limit, page: query.page, store_id, category_id, vendedor_id, estado });
+  const q = normalizeSearchFilter(query.q);
+  const sort = normalizeSortFilter(query.sort);
+  return model.adminProducts({ limit: query.limit, page: query.page, store_id, category_id, vendedor_id, estado, q, sort });
 }
 async function updateCommissionStatus(admin, commissionId, body, ip){
   const updated = await model.updateCommissionStatus(id(commissionId), body.estado);

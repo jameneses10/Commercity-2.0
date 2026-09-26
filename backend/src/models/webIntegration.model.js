@@ -57,11 +57,12 @@ async function sellerCommissions(userId) {
   );
   return { store, commissions };
 }
-async function adminStores({ q='', status='', limit=50, page=1 }) {
+async function adminStores({ q='', status='', sort, limit=50, page=1 }) {
   limit = Math.min(Math.max(parseInt(limit,10)||50,1),100); page = Math.max(parseInt(page,10)||1,1);
   const where=[]; const params=[];
   if (q) { where.push('(t.nombre LIKE ? OR u.nombre LIKE ? OR u.correo LIKE ?)'); params.push(`%${q}%`,`%${q}%`,`%${q}%`); }
   if (status) { where.push('t.estado = ?'); params.push(status); }
+  const orderBy = sort==='oldest' ? 't.created_at ASC' : 't.created_at DESC';
   params.push(limit, (page-1)*limit);
   const [stores] = await pool.query(
     `SELECT t.id, t.nombre, t.slug, t.estado, t.reputacion_promedio, t.nivel_reputacion, t.created_at,
@@ -73,13 +74,18 @@ async function adminStores({ q='', status='', limit=50, page=1 }) {
        LEFT JOIN productos p ON p.tienda_id = t.id
       ${where.length ? 'WHERE '+where.join(' AND ') : ''}
       GROUP BY t.id
-      ORDER BY t.created_at DESC
+      ORDER BY ${orderBy}
       LIMIT ? OFFSET ?`, params
   );
   return { stores, pagination: { page, limit } };
 }
-async function adminPayments({ limit=50, page=1 }) {
+async function adminPayments({ q, estado, sort, limit=50, page=1 }) {
   limit=Math.min(Math.max(parseInt(limit,10)||50,1),100); page=Math.max(parseInt(page,10)||1,1);
+  const where=[]; const params=[];
+  if (q) { where.push('(pg.referencia LIKE ? OR u.nombre LIKE ? OR u.correo LIKE ?)'); params.push(`%${q}%`,`%${q}%`,`%${q}%`); }
+  if (estado) { where.push('pg.estado = ?'); params.push(estado); }
+  const orderBy = sort==='oldest' ? 'pg.created_at ASC' : 'pg.created_at DESC';
+  params.push(limit, (page-1)*limit);
   const [payments] = await pool.query(
     `SELECT pg.id, pg.pedido_id, pg.metodo, pg.referencia, pg.estado, pg.mensaje, pg.created_at,
             p.total AS valor, p.estado_pago, p.estado_general,
@@ -87,7 +93,8 @@ async function adminPayments({ limit=50, page=1 }) {
        FROM pagos pg
        INNER JOIN pedidos p ON p.id = pg.pedido_id
        INNER JOIN usuarios u ON u.id = p.comprador_id
-      ORDER BY pg.created_at DESC LIMIT ? OFFSET ?`, [limit,(page-1)*limit]
+      ${where.length ? 'WHERE '+where.join(' AND ') : ''}
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`, params
   );
   return { payments, pagination:{page,limit} };
 }
@@ -142,13 +149,15 @@ async function adminCommissions({ limit=50, page=1, pedido_id, vendedor_id, fech
   );
   return { commissions, pagination:{page,limit} };
 }
-async function adminProducts({ store_id, category_id, estado, vendedor_id, limit=50, page=1 }) {
+async function adminProducts({ store_id, category_id, estado, vendedor_id, q, sort, limit=50, page=1 }) {
   limit = Math.min(Math.max(parseInt(limit,10)||50,1),100); page = Math.max(parseInt(page,10)||1,1);
   const where=[]; const params=[];
   if (store_id!==undefined) { where.push('p.tienda_id = ?'); params.push(store_id); }
   if (category_id!==undefined) { where.push('p.categoria_id = ?'); params.push(category_id); }
   if (estado!==undefined) { where.push('p.estado = ?'); params.push(estado); }
   if (vendedor_id!==undefined) { where.push('u.id = ?'); params.push(vendedor_id); }
+  if (q) { where.push('p.nombre LIKE ?'); params.push(`%${q}%`); }
+  const orderBy = sort==='oldest' ? 'p.created_at ASC' : 'p.created_at DESC';
   params.push(limit, (page-1)*limit);
   const [products] = await pool.query(
     `SELECT p.id, p.tienda_id, p.categoria_id, p.nombre, p.slug, p.descripcion, p.precio, p.precio_anterior,
@@ -162,7 +171,7 @@ async function adminProducts({ store_id, category_id, estado, vendedor_id, limit
        INNER JOIN usuarios u ON u.id = t.usuario_id
        INNER JOIN categorias c ON c.id = p.categoria_id
       ${where.length ? 'WHERE '+where.join(' AND ') : ''}
-      ORDER BY p.created_at DESC
+      ORDER BY ${orderBy}
       LIMIT ? OFFSET ?`, params
   );
   return { products, pagination: { page, limit } };

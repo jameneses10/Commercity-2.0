@@ -16,10 +16,44 @@ function mapUserStatusTransitionError(error) {
 
 async function dashboardStats() { return model.dashboardStats(); }
 
+function normalizeSearchFilter(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw err('q inválido.', 400);
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  if (trimmed.length > 120) throw err('q inválido.', 400);
+  return trimmed;
+}
+
+function normalizeSortFilter(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw err('sort inválido.', 400);
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  if (!['newest', 'oldest'].includes(trimmed)) throw err('sort inválido.', 400);
+  return trimmed;
+}
+
+function normalizeUserRoleFilter(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !['comprador', 'vendedor', 'administrador'].includes(value)) throw err('rol inválido.', 400);
+  return value;
+}
+
+function normalizeUserStateFilter(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !['activo', 'inactivo', 'baneado'].includes(value)) throw err('estado inválido.', 400);
+  return value;
+}
+
 async function listUsers(query) {
   const limit = Math.min(Math.max(parseInt(query.limit || '50', 10), 1), 100);
   const page = Math.max(parseInt(query.page || '1', 10), 1);
-  return { users: await model.listUsers({ limit, offset: (page - 1) * limit }), pagination: { page, limit } };
+  const q = normalizeSearchFilter(query.q);
+  const rol = normalizeUserRoleFilter(query.rol);
+  const estado = normalizeUserStateFilter(query.estado);
+  const sort = normalizeSortFilter(query.sort);
+  return { users: await model.listUsers({ limit, offset: (page - 1) * limit, q, rol, estado, sort }), pagination: { page, limit } };
 }
 
 async function updateUserStatus(admin, id, estado, ip) {
