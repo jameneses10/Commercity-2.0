@@ -451,16 +451,69 @@ function bindSalesReport(){
     loadSalesReport(salesReportState.period,nextPage);
   });
 }
+const TOP_PRODUCTS_LIMIT=10;
+const topProductsState={loading:false};
+function topProductsSection(){
+  return `<section class="cc-card mt-5" data-top-products><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Productos más vendidos</h2><p class="cc-muted">Ranking por unidades vendidas en pedidos pagados.</p></div></div><p class="cc-muted mt-3" data-top-products-status aria-live="polite">Cargando productos más vendidos...</p><section class="cc-grid cols-4 mt-3" data-top-products-summary></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>#</th><th>Producto</th><th>Unidades vendidas</th><th>Participación</th><th>Total vendido</th><th>Stock actual</th></tr></thead><tbody data-top-products-rows><tr><td colspan="6">Cargando...</td></tr></tbody></table></section></section>`;
+}
+async function getTopProducts(){
+  return (await api.get('/seller/store/sold-products')).data;
+}
+function topProductsRanking(products){
+  const sold=(Array.isArray(products)?products:[]).filter(p=>Number(p?.cantidad_vendida||0)>0);
+  sold.sort((a,b)=>Number(b.cantidad_vendida||0)-Number(a.cantidad_vendida||0)||String(a.nombre??'').localeCompare(String(b.nombre??'')));
+  const unitsTotal=sold.reduce((acc,p)=>acc+Number(p.cantidad_vendida||0),0);
+  const revenueTotal=sold.reduce((acc,p)=>acc+Number(p.total_vendido||0),0);
+  return {rows:sold.slice(0,TOP_PRODUCTS_LIMIT),soldCount:sold.length,unitsTotal,revenueTotal};
+}
+function topProductsShare(units,unitsTotal){
+  if(!unitsTotal) return '0%';
+  return `${Math.round((Number(units||0)/unitsTotal)*1000)/10}%`;
+}
+function renderTopProductsSummary(root,ranking){
+  const summary=root.querySelector('[data-top-products-summary]');
+  if(!summary) return;
+  const leader=ranking.rows[0];
+  summary.innerHTML=`<article class="cc-card cc-metric-card"><b>Productos con ventas</b><strong>${esc(ranking.soldCount)}</strong><span>Con pedidos pagados</span></article><article class="cc-card cc-metric-card"><b>Unidades vendidas</b><strong>${esc(ranking.unitsTotal)}</strong><span>Total acumulado</span></article><article class="cc-card cc-metric-card"><b>Total vendido</b><strong>${money(ranking.revenueTotal)}</strong><span>Ingresos brutos</span></article><article class="cc-card cc-metric-card"><b>Producto líder</b><strong>${esc(leader?.nombre||'Sin datos')}</strong><span>${leader?`${esc(leader.cantidad_vendida||0)} unidades · ${esc(topProductsShare(leader.cantidad_vendida,ranking.unitsTotal))}`:'Aún sin ventas'}</span></article>`;
+}
+function renderTopProductsRows(root,ranking){
+  const tbody=root.querySelector('[data-top-products-rows]');
+  if(!tbody) return;
+  tbody.innerHTML=ranking.rows.length?ranking.rows.map((p,index)=>`<tr><td><b>${index+1}</b></td><td><b>${esc(p.nombre||'Producto')}</b><small class="text-xs text-slate-400 block">ID: ${esc(p.id??'')}</small></td><td>${esc(p.cantidad_vendida||0)}</td><td>${esc(topProductsShare(p.cantidad_vendida,ranking.unitsTotal))}</td><td>${money(p.total_vendido||0)}</td><td>${esc(p.stock??0)}</td></tr>`).join(''):'<tr><td colspan="6"><b>Sin productos vendidos.</b><p class="cc-muted">Cuando existan pedidos pagados, aquí verás el ranking de productos más vendidos.</p></td></tr>';
+}
+async function loadTopProducts(){
+  const root=document.querySelector('[data-top-products]');
+  if(!root||topProductsState.loading) return;
+  topProductsState.loading=true;
+  const status=root.querySelector('[data-top-products-status]');
+  if(status) status.textContent='Cargando productos más vendidos...';
+  try{
+    const data=await getTopProducts();
+    const ranking=topProductsRanking(data?.products);
+    renderTopProductsSummary(root,ranking);
+    renderTopProductsRows(root,ranking);
+    if(status) status.textContent=ranking.rows.length?`Top ${ranking.rows.length} de ${ranking.soldCount} producto${ranking.soldCount===1?'':'s'} con ventas.`:'Todavía no hay productos vendidos.';
+  }catch(error){
+    const summary=root.querySelector('[data-top-products-summary]');
+    if(summary) summary.innerHTML='';
+    const tbody=root.querySelector('[data-top-products-rows]');
+    if(tbody) tbody.innerHTML=`<tr><td colspan="6"><b>No fue posible cargar el ranking.</b><p class="cc-muted">${esc(error.message)}</p></td></tr>`;
+    if(status) status.textContent='Error al cargar los productos más vendidos.';
+  }finally{
+    topProductsState.loading=false;
+  }
+}
 async function earningsPage(){
   const [data,commData,bank]=await Promise.all([getEarnings(),api.get('/seller/commissions').catch(()=>({data:{commissions:[]}})),api.get('/seller/bank-account').catch(e=>({error:e}))]);
   const commissions=commData.data.commissions||[];
   const earnings=commissions.length?commissions.map(c=>({fecha:c.created_at,pedido_id:c.pedido_id,venta_total:c.valor_venta,comision:c.valor_comision,neto:c.valor_vendedor,estado:c.estado,porcentaje_comision:c.porcentaje_comision})):data.earnings||[];
   const total=earnings.reduce((a,e)=>a+Number(e.neto||e.total||0),0);
   const balances=sellerBalances(commissions);
-  main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}${salesReportSection()}`;
+  main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}${salesReportSection()}${topProductsSection()}`;
   bindFilters(main());
   bindSalesReport();
   await loadSalesReport('daily',1);
+  await loadTopProducts();
 }
 function bankAccountTipos(){ return [['ahorros','Ahorros'],['corriente','Corriente'],['nequi','Nequi'],['daviplata','Daviplata'],['simulada','Simulada']]; }
 function renderBankCard(bank){
