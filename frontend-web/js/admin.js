@@ -32,6 +32,10 @@ function clearGlobalAdminSearch(panel){
   panel.setAttribute('aria-busy','false');
 }
 
+function normalizeStoreContextTab(value){
+  return ['productos','pedidos','reportes'].includes(value)?value:'productos';
+}
+
 function renderGlobalAdminSearchResults(panel,results){
   const usuarios=Array.isArray(results?.usuarios)?results.usuarios:[];
   const tiendas=Array.isArray(results?.tiendas)?results.tiendas:[];
@@ -40,7 +44,7 @@ function renderGlobalAdminSearchResults(panel,results){
   const emptyGroup=label=>`<div class="cc-card"><p class="cc-muted">No hay coincidencias en ${esc(label)}.</p></div>`;
   const group=(key,title,items,content)=>`<section aria-labelledby="adminGlobalSearch${key}Title"><div class="cc-section-title"><h3 id="adminGlobalSearch${key}Title" class="text-2xl font-bold">${esc(title)}</h3><span class="cc-chip">${items.length}</span></div><div class="grid gap-3">${items.length?items.map(content).join(''):emptyGroup(title.toLowerCase())}</div></section>`;
   const usersHtml=group('Users','Usuarios',usuarios,user=>`<article class="cc-card"><h4 class="text-xl font-bold">${esc(user.nombre||'Nombre no disponible')}</h4><p class="cc-muted">${esc(user.correo||'Correo no disponible')}</p><p><b>Rol:</b> ${esc(user.rol||'No disponible')}</p><p><b>Estado:</b> ${esc(user.estado||'No disponible')}</p></article>`);
-  const storesHtml=group('Stores','Tiendas',tiendas,store=>{ const id=positiveId(store.id); return `<article class="cc-card"><h4 class="text-xl font-bold">${esc(store.nombre||'Tienda sin nombre')}</h4><p><b>Estado:</b> ${esc(store.estado||'No disponible')}</p><p class="cc-muted">Vendedor: ${esc(store.vendedor_nombre||'No disponible')}</p><p class="cc-muted">${esc(store.vendedor_correo||'Correo no disponible')}</p>${id?`<a class="cc-btn outline mt-3" href="admin-tiendas.html?id=${encodeURIComponent(String(id))}">Ver tienda</a>`:''}</article>`; });
+  const storesHtml=group('Stores','Tiendas',tiendas,store=>{ const id=positiveId(store.id); const encodedId=id?encodeURIComponent(String(id)):''; return `<article class="cc-card"><h4 class="text-xl font-bold">${esc(store.nombre||'Tienda sin nombre')}</h4><p><b>Estado:</b> ${esc(store.estado||'No disponible')}</p><p class="cc-muted">Vendedor: ${esc(store.vendedor_nombre||'No disponible')}</p><p class="cc-muted">${esc(store.vendedor_correo||'Correo no disponible')}</p>${id?`<div class="cc-card-actions-row mt-3"><a class="cc-btn outline" href="admin-tiendas.html?id=${encodedId}">Ver tienda</a><a class="cc-btn outline" href="admin-tiendas.html?id=${encodedId}&tab=productos">Productos</a><a class="cc-btn outline" href="admin-tiendas.html?id=${encodedId}&tab=pedidos">Pedidos</a><a class="cc-btn outline" href="admin-tiendas.html?id=${encodedId}&tab=reportes">Reportes</a></div>`:''}</article>`; });
   const productsHtml=group('Products','Productos',productos,product=>{ const id=positiveId(product.id); const price=Number(product.precio); const stock=Number(product.stock); const priceText=Number.isFinite(price)?money(price):'Precio no disponible'; const stockText=Number.isFinite(stock)?String(stock):'No disponible'; return `<article class="cc-card"><h4 class="text-xl font-bold">${esc(product.nombre||'Producto sin nombre')}</h4><p><b>Estado:</b> ${esc(product.estado||'No disponible')}</p><p><b>Precio:</b> ${esc(priceText)}</p><p><b>Stock:</b> ${esc(stockText)}</p><p class="cc-muted">Tienda: ${esc(product.tienda_nombre||'No disponible')}</p>${id?`<a class="cc-btn outline mt-3" href="producto-detalle.html?id=${encodeURIComponent(String(id))}">Ver producto</a>`:''}</article>`; });
   const total=usuarios.length+tiendas.length+productos.length;
   panel.innerHTML=`<div class="cc-section-title"><div><h2 class="text-3xl font-bold">Resultados de búsqueda global</h2><p class="cc-muted">Usuarios, tiendas y productos encontrados.</p></div><span class="cc-chip orange">${total} resultado${total===1?'':'s'}</span></div>${total?'':'<div class="cc-alert mb-5" role="status">No se encontraron coincidencias. Prueba con otro término.</div>'}<div class="cc-grid cols-3">${usersHtml}${storesHtml}${productsHtml}</div>`;
@@ -150,12 +154,13 @@ function bindStoreDetailTabs(root){
     root.querySelectorAll('[data-store-tab-panel]').forEach(p=>p.classList.toggle('hidden', p.dataset.storeTabPanel!==btn.dataset.storeTab));
   });
 }
-async function storeDetailPage(stores, storeId){
+async function storeDetailPage(stores, storeId, requestedTab){
   const store=stores.find(s=>String(s.id)===String(storeId));
   if(!store){ main().innerHTML=shell('Tienda no encontrada','cc-store-shopping-bag.svg','Tiendas','La tienda solicitada no existe en el listado administrativo.','<a class="cc-btn outline" href="admin-tiendas.html">Volver a tiendas</a>')+empty('cc-store-shopping-bag.svg','Tienda no encontrada.','Verifica el identificador o vuelve al listado de tiendas.'); return; }
+  const initialTab=normalizeStoreContextTab(requestedTab);
   main().innerHTML=shell(store.nombre,'cc-store-shopping-bag.svg','Detalle de tienda',`Vista administrativa detallada de ${store.nombre}.`,'<a class="cc-btn outline" href="admin-tiendas.html">Volver a tiendas</a>')
-    +`<section class="cc-card mb-5"><span class="cc-chip ${chipClass(store.estado)}">${esc(store.estado||'estado')}</span><div class="cc-module-filters" data-store-detail-tabs>${STORE_DETAIL_TABS.map((t,i)=>`<button class="cc-filter-pill ${i===0?'active':''}" type="button" data-store-tab="${t[0]}">${esc(t[1])}</button>`).join('')}</div></section>`
-    +STORE_DETAIL_TABS.map((t,i)=>`<section class="${i===0?'':'hidden'}" data-store-tab-panel="${t[0]}"><p class="cc-muted">Cargando...</p></section>`).join('');
+    +`<section class="cc-card mb-5"><span class="cc-chip ${chipClass(store.estado)}">${esc(store.estado||'estado')}</span><div class="cc-module-filters" data-store-detail-tabs>${STORE_DETAIL_TABS.map(t=>`<button class="cc-filter-pill ${t[0]===initialTab?'active':''}" type="button" data-store-tab="${t[0]}">${esc(t[1])}</button>`).join('')}</div></section>`
+    +STORE_DETAIL_TABS.map(t=>`<section class="${t[0]===initialTab?'':'hidden'}" data-store-tab-panel="${t[0]}"><p class="cc-muted">Cargando...</p></section>`).join('');
   bindStoreDetailTabs(main());
   const setPanel=(key,html)=>{ const el=main().querySelector(`[data-store-tab-panel="${key}"]`); if(el) el.innerHTML=html; };
   setPanel('vendedor',`<section class="cc-card"><h2 class="text-2xl font-bold">Vendedor</h2><p class="cc-muted mt-3">Nombre: ${esc(store.vendedor_nombre||'No disponible')}</p><p class="cc-muted">Correo: ${esc(store.vendedor_correo||'No disponible')}</p></section>`);
@@ -207,7 +212,7 @@ function storesListView(stores,activeFilters={}){ main().innerHTML=shell('Tienda
   form?.addEventListener('submit',e=>{ e.preventDefault(); const fd=new FormData(e.currentTarget); const next={}; ['q','status','sort'].forEach(key=>{ const v=String(fd.get(key)||'').trim(); if(v) next[key]=v; }); storesPage(next); });
   document.querySelector('#adminStoresFilterClear')?.addEventListener('click',()=>{ storesPage({}); });
 }
-async function storesPage(activeFilters={}){ let stores; try{ stores=await loadAllAdminStores(activeFilters); }catch(error){ main().innerHTML=shell('Tiendas','cc-store-shopping-bag.svg','Tiendas','Listado administrativo real de tiendas.','')+empty('cc-store-shopping-bag.svg','No se pudo cargar el listado completo de tiendas.',error.message||'No fue posible cargar las tiendas.'); return; } const requestedId=new URLSearchParams(location.search).get('id'); if(!requestedId){ storesListView(stores,activeFilters); return; } await storeDetailPage(stores, requestedId); }
+async function storesPage(activeFilters={}){ let stores; try{ stores=await loadAllAdminStores(activeFilters); }catch(error){ main().innerHTML=shell('Tiendas','cc-store-shopping-bag.svg','Tiendas','Listado administrativo real de tiendas.','')+empty('cc-store-shopping-bag.svg','No se pudo cargar el listado completo de tiendas.',error.message||'No fue posible cargar las tiendas.'); return; } const params=new URLSearchParams(location.search); const requestedId=params.get('id'); const requestedTab=params.get('tab'); if(!requestedId){ storesListView(stores,activeFilters); return; } await storeDetailPage(stores,requestedId,requestedTab); }
 async function productsPage(activeFilters={}){
   const [productsResult,reportsResult]=await Promise.allSettled([loadAllAdminProducts(activeFilters),loadAllAdminProductReports()]);
   if(productsResult.status!=='fulfilled'){ main().innerHTML=shell('Productos','cc-products-management.svg','Catálogo','Productos reales y reportes administrativos.')+empty('cc-products-management.svg','No se pudo cargar el listado completo de productos.',productsResult.reason?.message||'No fue posible cargar los productos.'); return; }
