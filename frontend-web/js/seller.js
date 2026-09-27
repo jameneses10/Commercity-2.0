@@ -376,7 +376,92 @@ function renderEarningsBankSummary(bank){
   const notice=bankAccount.academic_notice || 'Cuenta bancaria simulada para fines académicos.';
   return `<h2>Cuenta bancaria</h2><p class="cc-muted">${esc(notice)}</p><p><b>Banco:</b> ${esc(bankAccount.banco)}</p><p><b>Tipo de cuenta:</b> ${esc(tipoLabel)}</p><p><b>Número de cuenta simulado:</b> ${esc(bankAccount.numero_cuenta_simulado)}</p><p><b>Titular:</b> ${esc(bankAccount.titular)}</p>`;
 }
-async function earningsPage(){ const [data, commData, bank]=await Promise.all([getEarnings(), api.get('/seller/commissions').catch(()=>({data:{commissions:[]}})), api.get('/seller/bank-account').catch(e=>({error:e}))]); const commissions=commData.data.commissions||[]; const earnings=commissions.length?commissions.map(c=>({fecha:c.created_at,pedido_id:c.pedido_id,venta_total:c.valor_venta,comision:c.valor_comision,neto:c.valor_vendedor,estado:c.estado,porcentaje_comision:c.porcentaje_comision})):data.earnings||[]; const total=earnings.reduce((a,e)=>a+Number(e.neto||e.total||0),0); const balances=sellerBalances(commissions); main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}`; bindFilters(main()); }
+const SALES_REPORT_LIMIT=20;
+const SALES_REPORT_PERIODS=new Set(['daily','weekly','monthly']);
+const SALES_REPORT_MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const salesReportState={period:'daily',page:1,limit:SALES_REPORT_LIMIT,rowCount:0,loading:false};
+function salesReportSection(){
+  return `<section class="cc-card mt-5" data-sales-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reporte de ventas</h2><p class="cc-muted">Ventas pagadas agrupadas por período.</p></div></div><div class="cc-module-filters" data-sales-report-periods><button class="cc-filter-pill active" data-sales-report-period="daily" type="button">Diario</button><button class="cc-filter-pill" data-sales-report-period="weekly" type="button">Semanal</button><button class="cc-filter-pill" data-sales-report-period="monthly" type="button">Mensual</button></div><p class="cc-muted mt-3" data-sales-report-status aria-live="polite">Cargando reporte diario...</p><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Período</th><th>Ventas</th><th>Ventas brutas</th><th>Comisión</th><th>Neto vendedor</th></tr></thead><tbody data-sales-report-rows><tr><td colspan="5">Cargando...</td></tr></tbody></table></section><nav class="cc-card-actions-row mt-3" data-sales-report-pagination aria-label="Paginación del reporte de ventas"><button class="cc-btn outline" data-sales-report-page="previous" type="button" disabled>Anterior</button><span data-sales-report-page-label aria-live="polite">Página 1</span><button class="cc-btn outline" data-sales-report-page="next" type="button" disabled>Siguiente</button></nav></section>`;
+}
+function salesReportPeriodLabel(value,period){
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value??''));
+  if(!match) return String(value||'Período no disponible');
+  const [,year,month,day]=match;
+  const calendarLabel=`${day}/${month}/${year}`;
+  if(period==='weekly') return `Semana del ${calendarLabel}`;
+  if(period==='monthly') return `${SALES_REPORT_MONTHS[Number(month)-1]||month} ${year}`;
+  return calendarLabel;
+}
+async function getSalesReport(period,page,limit=SALES_REPORT_LIMIT){
+  const params=new URLSearchParams({period,page:String(page),limit:String(limit)});
+  return (await api.get(`/seller/store/earnings?${params.toString()}`)).data;
+}
+function updateSalesReportControls(root){
+  root.querySelectorAll('[data-sales-report-period]').forEach(button=>{
+    button.classList.toggle('active',button.dataset.salesReportPeriod===salesReportState.period);
+    button.disabled=salesReportState.loading;
+  });
+  const previous=root.querySelector('[data-sales-report-page="previous"]');
+  const next=root.querySelector('[data-sales-report-page="next"]');
+  if(previous) previous.disabled=salesReportState.loading||salesReportState.page===1;
+  if(next) next.disabled=salesReportState.loading||salesReportState.rowCount<salesReportState.limit;
+  const pageLabel=root.querySelector('[data-sales-report-page-label]');
+  if(pageLabel) pageLabel.textContent=`Página ${salesReportState.page}`;
+}
+function renderSalesReportRows(root,rows){
+  const tbody=root.querySelector('[data-sales-report-rows]');
+  if(!tbody) return;
+  tbody.innerHTML=rows.length?rows.map(row=>`<tr><td><b>${esc(salesReportPeriodLabel(row.period_start,salesReportState.period))}</b></td><td>${esc(row.sales_count??0)}</td><td>${money(row.gross_total||0)}</td><td>${money(row.commission_total||0)}</td><td>${money(row.seller_net_total||0)}</td></tr>`).join(''):'<tr><td colspan="5"><b>Sin ventas para esta página.</b><p class="cc-muted">No existen períodos pagados para mostrar.</p></td></tr>';
+}
+async function loadSalesReport(period=salesReportState.period,page=salesReportState.page){
+  const root=document.querySelector('[data-sales-report]');
+  if(!root||salesReportState.loading||!SALES_REPORT_PERIODS.has(period)) return;
+  salesReportState.period=period;
+  salesReportState.page=Math.max(1,Number.parseInt(page,10)||1);
+  salesReportState.loading=true;
+  const status=root.querySelector('[data-sales-report-status]');
+  if(status) status.textContent='Cargando reporte de ventas...';
+  updateSalesReportControls(root);
+  try{
+    const data=await getSalesReport(salesReportState.period,salesReportState.page,salesReportState.limit);
+    const rows=Array.isArray(data?.report_rows)?data.report_rows:[];
+    salesReportState.period=SALES_REPORT_PERIODS.has(data?.period)?data.period:salesReportState.period;
+    salesReportState.page=Math.max(1,Number.parseInt(data?.pagination?.page,10)||salesReportState.page);
+    salesReportState.rowCount=rows.length;
+    renderSalesReportRows(root,rows);
+    if(status) status.textContent=`${rows.length} período${rows.length===1?'':'s'} en esta página.`;
+  }catch(error){
+    salesReportState.rowCount=0;
+    const tbody=root.querySelector('[data-sales-report-rows]');
+    if(tbody) tbody.innerHTML=`<tr><td colspan="5"><b>No fue posible cargar el reporte.</b><p class="cc-muted">${esc(error.message)}</p></td></tr>`;
+    if(status) status.textContent='Error al cargar el reporte de ventas.';
+  }finally{
+    salesReportState.loading=false;
+    updateSalesReportControls(root);
+  }
+}
+function bindSalesReport(){
+  const root=document.querySelector('[data-sales-report]');
+  root?.addEventListener('click',event=>{
+    const periodButton=event.target.closest('[data-sales-report-period]');
+    if(periodButton){ loadSalesReport(periodButton.dataset.salesReportPeriod,1); return; }
+    const pageButton=event.target.closest('[data-sales-report-page]');
+    if(!pageButton) return;
+    const nextPage=pageButton.dataset.salesReportPage==='previous'?salesReportState.page-1:salesReportState.page+1;
+    loadSalesReport(salesReportState.period,nextPage);
+  });
+}
+async function earningsPage(){
+  const [data,commData,bank]=await Promise.all([getEarnings(),api.get('/seller/commissions').catch(()=>({data:{commissions:[]}})),api.get('/seller/bank-account').catch(e=>({error:e}))]);
+  const commissions=commData.data.commissions||[];
+  const earnings=commissions.length?commissions.map(c=>({fecha:c.created_at,pedido_id:c.pedido_id,venta_total:c.valor_venta,comision:c.valor_comision,neto:c.valor_vendedor,estado:c.estado,porcentaje_comision:c.porcentaje_comision})):data.earnings||[];
+  const total=earnings.reduce((a,e)=>a+Number(e.neto||e.total||0),0);
+  const balances=sellerBalances(commissions);
+  main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}${salesReportSection()}`;
+  bindFilters(main());
+  bindSalesReport();
+  await loadSalesReport('daily',1);
+}
 function bankAccountTipos(){ return [['ahorros','Ahorros'],['corriente','Corriente'],['nequi','Nequi'],['daviplata','Daviplata'],['simulada','Simulada']]; }
 function renderBankCard(bank){
   if(bank?.error){ return `<h2>Cuenta bancaria</h2><p class="cc-muted">${esc(bank.error.message || 'No fue posible consultar la cuenta bancaria simulada.')}</p>`; }
