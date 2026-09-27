@@ -16,7 +16,8 @@ async function listBuyer(userId){
 }
 function nextCalendarDay(fecha){ const [y,m,d]=fecha.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+1)).toISOString().slice(0,10); }
 async function listAll(filters={}){
-  const { tienda_id, comprador_id, vendedor_id, estado_pago, estado_envio, fecha, q, sort } = filters;
+  const { tienda_id, comprador_id, vendedor_id, estado_pago, estado_envio, fecha, q, sort, page=1, limit=50 } = filters;
+  const offset=(page-1)*limit;
   const where=[]; const params=[];
   if (comprador_id!==undefined) { where.push('p.comprador_id = ?'); params.push(comprador_id); }
   if (estado_pago!==undefined) { where.push('p.estado_pago = ?'); params.push(estado_pago); }
@@ -30,6 +31,7 @@ async function listAll(filters={}){
     where.push(`EXISTS (SELECT 1 FROM pedido_detalles d INNER JOIN tiendas t ON t.id = d.tienda_id LEFT JOIN envios e ON e.pedido_id = d.pedido_id AND e.tienda_id = d.tienda_id WHERE ${sub.join(' AND ')})`);
   }
   const orderBy = sort==='oldest' ? 'p.created_at ASC' : 'p.created_at DESC';
+  params.push(limit,offset);
   const [orders] = await pool.query(
     `SELECT p.*, u.nombre AS comprador_nombre,
             (SELECT GROUP_CONCAT(DISTINCT t2.nombre ORDER BY t2.nombre SEPARATOR ', ') FROM pedido_detalles d2 INNER JOIN tiendas t2 ON t2.id = d2.tienda_id WHERE d2.pedido_id = p.id) AS tiendas_nombres,
@@ -38,7 +40,8 @@ async function listAll(filters={}){
        FROM pedidos p
        INNER JOIN usuarios u ON u.id = p.comprador_id
       ${where.length ? 'WHERE '+where.join(' AND ') : ''}
-      ORDER BY ${orderBy}`, params
+      ORDER BY ${orderBy}
+      LIMIT ? OFFSET ?`, params
   );
   return orders;
 }
