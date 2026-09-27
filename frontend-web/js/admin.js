@@ -9,6 +9,7 @@ function returnStatusLabel(estado){ return RETURN_STATUS_LABELS[estado] || 'Esta
 const RF212_ADMIN_STATES = ['en_revision','aprobada','rechazada'];
 const state = { user:null };
 let adminProductsCache=[];
+let globalAdminSearchRequestId=0;
 
 function esc(v){return String(v ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function main(){return document.querySelector('main');}
@@ -22,6 +23,82 @@ async function safe(path, fallback=null){ try{return await api.get(path);}catch(
 async function postSafe(path,body){ return api.post(path,body); }
 async function patchSafe(path,body){ return api.patch(path,body); }
 async function delSafe(path){ return api.delete(path); }
+
+function clearGlobalAdminSearch(panel){
+  globalAdminSearchRequestId++;
+  if(!panel) return;
+  panel.innerHTML='';
+  panel.hidden=true;
+  panel.setAttribute('aria-busy','false');
+}
+
+function renderGlobalAdminSearchResults(panel,results){
+  const usuarios=Array.isArray(results?.usuarios)?results.usuarios:[];
+  const tiendas=Array.isArray(results?.tiendas)?results.tiendas:[];
+  const productos=Array.isArray(results?.productos)?results.productos:[];
+  const positiveId=value=>{ const id=Number(value); return Number.isInteger(id)&&id>0?id:null; };
+  const emptyGroup=label=>`<div class="cc-card"><p class="cc-muted">No hay coincidencias en ${esc(label)}.</p></div>`;
+  const group=(key,title,items,content)=>`<section aria-labelledby="adminGlobalSearch${key}Title"><div class="cc-section-title"><h3 id="adminGlobalSearch${key}Title" class="text-2xl font-bold">${esc(title)}</h3><span class="cc-chip">${items.length}</span></div><div class="grid gap-3">${items.length?items.map(content).join(''):emptyGroup(title.toLowerCase())}</div></section>`;
+  const usersHtml=group('Users','Usuarios',usuarios,user=>`<article class="cc-card"><h4 class="text-xl font-bold">${esc(user.nombre||'Nombre no disponible')}</h4><p class="cc-muted">${esc(user.correo||'Correo no disponible')}</p><p><b>Rol:</b> ${esc(user.rol||'No disponible')}</p><p><b>Estado:</b> ${esc(user.estado||'No disponible')}</p></article>`);
+  const storesHtml=group('Stores','Tiendas',tiendas,store=>{ const id=positiveId(store.id); return `<article class="cc-card"><h4 class="text-xl font-bold">${esc(store.nombre||'Tienda sin nombre')}</h4><p><b>Estado:</b> ${esc(store.estado||'No disponible')}</p><p class="cc-muted">Vendedor: ${esc(store.vendedor_nombre||'No disponible')}</p><p class="cc-muted">${esc(store.vendedor_correo||'Correo no disponible')}</p>${id?`<a class="cc-btn outline mt-3" href="admin-tiendas.html?id=${encodeURIComponent(String(id))}">Ver tienda</a>`:''}</article>`; });
+  const productsHtml=group('Products','Productos',productos,product=>{ const id=positiveId(product.id); const price=Number(product.precio); const stock=Number(product.stock); const priceText=Number.isFinite(price)?money(price):'Precio no disponible'; const stockText=Number.isFinite(stock)?String(stock):'No disponible'; return `<article class="cc-card"><h4 class="text-xl font-bold">${esc(product.nombre||'Producto sin nombre')}</h4><p><b>Estado:</b> ${esc(product.estado||'No disponible')}</p><p><b>Precio:</b> ${esc(priceText)}</p><p><b>Stock:</b> ${esc(stockText)}</p><p class="cc-muted">Tienda: ${esc(product.tienda_nombre||'No disponible')}</p>${id?`<a class="cc-btn outline mt-3" href="producto-detalle.html?id=${encodeURIComponent(String(id))}">Ver producto</a>`:''}</article>`; });
+  const total=usuarios.length+tiendas.length+productos.length;
+  panel.innerHTML=`<div class="cc-section-title"><div><h2 class="text-3xl font-bold">Resultados de búsqueda global</h2><p class="cc-muted">Usuarios, tiendas y productos encontrados.</p></div><span class="cc-chip orange">${total} resultado${total===1?'':'s'}</span></div>${total?'':'<div class="cc-alert mb-5" role="status">No se encontraron coincidencias. Prueba con otro término.</div>'}<div class="cc-grid cols-3">${usersHtml}${storesHtml}${productsHtml}</div>`;
+  panel.hidden=false;
+  panel.setAttribute('aria-busy','false');
+}
+
+function bindGlobalAdminSearch(){
+  const form=document.querySelector('header.cc-header form.cc-search');
+  const input=form?.querySelector('input[name="q"]');
+  const header=document.querySelector('header.cc-header');
+  if(!form||!input||!header) return;
+  form.setAttribute('data-admin-global-search','');
+  input.setAttribute('data-admin-global-search-input','');
+  input.setAttribute('maxlength','120');
+  input.setAttribute('aria-label','Buscar usuarios, tiendas o productos');
+  input.setAttribute('placeholder','Buscar usuarios, tiendas o productos…');
+  form.setAttribute('aria-label','Búsqueda global administrativa');
+  let panel=document.querySelector('[data-admin-global-search-results]');
+  if(!panel){
+    panel=document.createElement('section');
+    panel.className='cc-container mt-5';
+    panel.setAttribute('data-admin-global-search-results','');
+    panel.setAttribute('aria-live','polite');
+    panel.setAttribute('aria-busy','false');
+    panel.hidden=true;
+    header.insertAdjacentElement('afterend',panel);
+  }
+  if(form.dataset.adminGlobalSearchBound==='true') return;
+  form.dataset.adminGlobalSearchBound='true';
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const q=input.value.trim();
+    if(q.length<2){ clearGlobalAdminSearch(panel); return; }
+    const requestId=++globalAdminSearchRequestId;
+    if(q.length>120){
+      panel.hidden=false;
+      panel.setAttribute('aria-busy','false');
+      panel.innerHTML='<div data-admin-global-search-message></div>';
+      showMessage('[data-admin-global-search-message]','La búsqueda debe tener entre 2 y 120 caracteres.');
+      return;
+    }
+    panel.hidden=false;
+    panel.setAttribute('aria-busy','true');
+    panel.innerHTML='<div class="cc-card" role="status"><h2 class="text-2xl font-bold">Búsqueda global</h2><p class="cc-muted">Buscando usuarios, tiendas y productos…</p></div>';
+    try{
+      const response=await api.get(`/admin/search?q=${encodeURIComponent(q)}`);
+      if(requestId!==globalAdminSearchRequestId) return;
+      renderGlobalAdminSearchResults(panel,response.data?.results||{});
+    }catch(error){
+      if(requestId!==globalAdminSearchRequestId) return;
+      panel.hidden=false;
+      panel.setAttribute('aria-busy','false');
+      panel.innerHTML='<div data-admin-global-search-message></div>';
+      showMessage('[data-admin-global-search-message]',error.message||'No fue posible completar la búsqueda global.');
+    }
+  });
+}
 
 async function adminSession(){
   if(!token()){ main()?.insertAdjacentHTML('afterbegin','<section class="cc-card cc-soft-warning mb-5"><b>Sesión administrativa requerida.</b><p>Inicia sesión como administrador para consultar datos reales.</p><a class="cc-btn mt-3" href="login.html">Ir a login</a></section>'); return null; }
@@ -450,5 +527,5 @@ window.submitResolveDeleteRequest = async function(id, estado) {
   }
 };
 function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productEdit){ openProductEditPanel(b.dataset.productEdit); return; } if(b.dataset.productDelete){ await delSafe(`/products/${b.dataset.productDelete}`); b.closest('tr')?.remove(); return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.reviewDeleteRequest){ window.reviewDeleteRequest(b.dataset.reviewDeleteRequest); return; } if(b.dataset.reviewReturn){ window.reviewReturn(b.dataset.reviewReturn); return; } if(b.dataset.reviewModerate){ await patchSafe(`/admin/reviews/${b.dataset.reviewModerate}/moderate`,{estado:b.dataset.reviewModerateState}); await reviewsPage(); return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
-async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-devoluciones.html') await returnsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
+async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindGlobalAdminSearch(); bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-devoluciones.html') await returnsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
 init();
