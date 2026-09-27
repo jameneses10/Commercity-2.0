@@ -19,5 +19,5 @@ async function earningsReport(tiendaId,{period,limit=20,offset=0}){
  return rows;
 }
 async function outOfStock(tiendaId){ const [rows]=await pool.query(`SELECT id,nombre,stock,estado,precio,descuento_porcentaje FROM productos WHERE tienda_id=? AND (stock=0 OR estado='agotado') AND estado <> 'eliminado' ORDER BY updated_at DESC`,[tiendaId]); return rows; }
-async function soldProducts(tiendaId){ const [rows]=await pool.query(`SELECT pr.id,pr.nombre,pr.stock,COALESCE(SUM(d.cantidad),0) cantidad_vendida,COALESCE(SUM(d.subtotal),0) total_vendido FROM productos pr LEFT JOIN pedido_detalles d ON d.producto_id=pr.id LEFT JOIN pedidos p ON p.id=d.pedido_id AND p.estado_pago='pagado' WHERE pr.tienda_id=? GROUP BY pr.id ORDER BY cantidad_vendida DESC, pr.nombre ASC`,[tiendaId]); return rows; }
+async function soldProducts(tiendaId){ const [rows]=await pool.query(`SELECT pr.id,pr.nombre,pr.stock,COALESCE(SUM(CASE WHEN p.estado_pago='pagado' THEN d.cantidad ELSE 0 END),0) cantidad_vendida,COALESCE(SUM(CASE WHEN p.estado_pago='pagado' THEN d.subtotal ELSE 0 END),0) total_vendido FROM productos pr LEFT JOIN pedido_detalles d ON d.producto_id=pr.id LEFT JOIN pedidos p ON p.id=d.pedido_id WHERE pr.tienda_id=? GROUP BY pr.id ORDER BY cantidad_vendida DESC, pr.nombre ASC`,[tiendaId]); return rows; }
 module.exports={stats,earnings,earningsReport,outOfStock,soldProducts};
