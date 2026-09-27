@@ -503,17 +503,63 @@ async function loadTopProducts(){
     topProductsState.loading=false;
   }
 }
+const stockAlertsState={loading:false};
+function stockAlertsSection(){
+  return `<section class="cc-card mt-5" data-stock-alerts><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Stock bajo y agotado</h2><p class="cc-muted">Consulta de productos que requieren reposición.</p></div></div><p class="cc-muted mt-3" data-stock-alerts-status aria-live="polite">Cargando consulta de stock...</p><section class="cc-grid cols-2 mt-3" data-stock-alerts-summary></section><h3 class="text-xl font-bold mt-5">Productos agotados</h3><section class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Producto</th><th>Stock</th><th>Estado</th><th>Precio</th></tr></thead><tbody data-stock-alerts-out><tr><td colspan="4">Cargando...</td></tr></tbody></table></section><h3 class="text-xl font-bold mt-5" data-stock-alerts-low-title>Productos con stock bajo</h3><section class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Producto</th><th>Stock</th><th>Estado</th><th>Precio</th></tr></thead><tbody data-stock-alerts-low><tr><td colspan="4">Cargando...</td></tr></tbody></table></section></section>`;
+}
+async function getStockAlerts(){
+  return (await api.get('/seller/store/out-of-stock-products')).data;
+}
+function stockAlertRow(product){
+  return `<tr><td><b>${esc(product.nombre||'Producto')}</b><small class="text-xs text-slate-400 block">ID: ${esc(product.id??'')}</small></td><td>${esc(product.stock??0)}</td><td><span class="cc-chip ${Number(product.stock||0)===0?'dark':'orange'}">${esc(product.estado||'no disponible')}</span></td><td>${money(product.precio||0)}</td></tr>`;
+}
+function renderStockAlertsTable(root,selector,products,emptyText){
+  const tbody=root.querySelector(selector);
+  if(!tbody) return;
+  tbody.innerHTML=products.length?products.map(stockAlertRow).join(''):`<tr><td colspan="4"><b>${esc(emptyText)}</b></td></tr>`;
+}
+async function loadStockAlerts(){
+  const root=document.querySelector('[data-stock-alerts]');
+  if(!root||stockAlertsState.loading) return;
+  stockAlertsState.loading=true;
+  const status=root.querySelector('[data-stock-alerts-status]');
+  if(status) status.textContent='Cargando consulta de stock...';
+  try{
+    const data=await getStockAlerts();
+    const outOfStock=Array.isArray(data?.products)?data.products:[];
+    const lowStock=Array.isArray(data?.low_stock_products)?data.low_stock_products:[];
+    const threshold=Number.isFinite(Number(data?.low_stock_threshold))?Number(data.low_stock_threshold):null;
+    const lowTitle=root.querySelector('[data-stock-alerts-low-title]');
+    if(lowTitle) lowTitle.textContent=threshold!==null?`Productos con stock bajo (1 a ${threshold} unidades)`:'Productos con stock bajo';
+    const summary=root.querySelector('[data-stock-alerts-summary]');
+    if(summary) summary.innerHTML=`<article class="cc-card cc-metric-card"><b>Agotados</b><strong>${esc(outOfStock.length)}</strong><span>Sin stock disponible</span></article><article class="cc-card cc-metric-card"><b>Stock bajo</b><strong>${esc(lowStock.length)}</strong><span>${threshold!==null?`Hasta ${esc(threshold)} unidades`:'Requieren reposición'}</span></article>`;
+    renderStockAlertsTable(root,'[data-stock-alerts-out]',outOfStock,'Sin productos agotados.');
+    renderStockAlertsTable(root,'[data-stock-alerts-low]',lowStock,'Sin productos con stock bajo.');
+    if(status) status.textContent=`${outOfStock.length} agotado${outOfStock.length===1?'':'s'} y ${lowStock.length} con stock bajo.`;
+  }catch(error){
+    const summary=root.querySelector('[data-stock-alerts-summary]');
+    if(summary) summary.innerHTML='';
+    ['[data-stock-alerts-out]','[data-stock-alerts-low]'].forEach(selector=>{
+      const tbody=root.querySelector(selector);
+      if(tbody) tbody.innerHTML=`<tr><td colspan="4"><b>No fue posible cargar la consulta de stock.</b><p class="cc-muted">${esc(error.message)}</p></td></tr>`;
+    });
+    if(status) status.textContent='Error al cargar la consulta de stock.';
+  }finally{
+    stockAlertsState.loading=false;
+  }
+}
 async function earningsPage(){
   const [data,commData,bank]=await Promise.all([getEarnings(),api.get('/seller/commissions').catch(()=>({data:{commissions:[]}})),api.get('/seller/bank-account').catch(e=>({error:e}))]);
   const commissions=commData.data.commissions||[];
   const earnings=commissions.length?commissions.map(c=>({fecha:c.created_at,pedido_id:c.pedido_id,venta_total:c.valor_venta,comision:c.valor_comision,neto:c.valor_vendedor,estado:c.estado,porcentaje_comision:c.porcentaje_comision})):data.earnings||[];
   const total=earnings.reduce((a,e)=>a+Number(e.neto||e.total||0),0);
   const balances=sellerBalances(commissions);
-  main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}${salesReportSection()}${topProductsSection()}`;
+  main().innerHTML=pageShell('Ganancias y comisiones','cc-commission.svg','Finanzas','Resumen financiero real cuando exista historial.','<a class="cc-btn outline" href="vendedor.html">Panel vendedor</a>')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Registros</b><strong>${earnings.length}</strong><span>API real</span></article><article class="cc-card cc-metric-card"><b>Neto estimado</b><strong>${money(total)}</strong><span>Según registros</span></article><article class="cc-card cc-metric-card"><b>Comisiones</b><strong>${money(earnings.reduce((a,e)=>a+Number(e.comision||0),0))}</strong><span>CommerCity</span></article><article class="cc-card cc-metric-card"><b>Estado</b><strong>${data.error?'Pendiente':'Real'}</strong><span>${esc(data.error?.message||'Conectado')}</span></article><article class="cc-card cc-metric-card"><b>Saldo pendiente</b><strong>${money(balances.pendiente)}</strong><span>Comisiones pendientes</span></article><article class="cc-card cc-metric-card"><b>Saldo pagado</b><strong>${money(balances.pagado)}</strong><span>Comisiones pagadas</span></article></section><section class="cc-card mt-5">${renderEarningsBankSummary(bank)}</section><section class="cc-card mt-5"><div class="cc-module-filters" data-seller-filter-group="earnings"><button class="cc-filter-pill active" data-filter="all" type="button">Mes actual</button><button class="cc-filter-pill" data-filter="pendiente" type="button">Pendientes</button><button class="cc-filter-pill" data-filter="pagada" type="button">Pagadas</button><button class="cc-filter-pill" data-filter="revisada" type="button">Revisadas</button></div></section><section class="cc-table-wrap mt-5"><table class="cc-table"><thead><tr><th>Fecha</th><th>Pedido</th><th>Venta</th><th>Comisión</th><th>Neta</th><th>Estado</th></tr></thead><tbody>${earnings.length?earnings.map(earningRow).join(''):''}</tbody></table></section>${earnings.length?'':empty('cc-commission.svg','Sin ganancias registradas.','Cuando haya pedidos pagados, aparecerán ganancias y comisiones reales.')}${salesReportSection()}${topProductsSection()}${stockAlertsSection()}`;
   bindFilters(main());
   bindSalesReport();
   await loadSalesReport('daily',1);
   await loadTopProducts();
+  await loadStockAlerts();
 }
 function bankAccountTipos(){ return [['ahorros','Ahorros'],['corriente','Corriente'],['nequi','Nequi'],['daviplata','Daviplata'],['simulada','Simulada']]; }
 function renderBankCard(bank){

@@ -11,7 +11,7 @@ const notificationService=require('./notification.service');
 const logService=require('./log.service');
 const favoriteService=require('./favorite.service');
 const EFFECTIVE_PRICE_EXPR=`ROUND(CASE WHEN p.descuento_porcentaje > 0 THEN p.precio * (1 - p.descuento_porcentaje / 100) ELSE p.precio END, 2)`;
-const LOW_STOCK_THRESHOLD=5;
+const { LOW_STOCK_THRESHOLD } = require('../config/stock');
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 function toCents(value){return Math.round(Number(value)*100);}
 function ensureCurrentPrice(detail,product){if(toCents(detail.precio_unitario)!==toCents(product.precio_final)) throw err('Los precios del pedido cambiaron.',409);}
