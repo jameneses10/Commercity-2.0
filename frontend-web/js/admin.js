@@ -473,12 +473,40 @@ function salesTotalsReportSection(stats){
   const rows=salesTotalsMetrics(stats).map(([label,value,hint])=>`<tr><td><b>${esc(label)}</b></td><td>${value}</td><td class="cc-muted">${esc(hint)}</td></tr>`).join('');
   return `<section class="cc-card mt-5" data-sales-totals-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reporte general de ventas totales</h2><p class="cc-muted">Totales acumulados de toda la plataforma, calculados sobre pedidos pagados.</p></div></div><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Indicador</th><th>Valor</th><th>Detalle</th></tr></thead><tbody data-sales-totals-rows>${rows}</tbody></table></div></section>`;
 }
+function commissionsCollectedMetrics(stats){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const collected=num(stats?.comisiones_recaudadas);
+  const base=num(stats?.base_liquidable);
+  const rate=base>0?(collected/base)*100:null;
+  return [
+    ['Comisiones recaudadas',money(collected),'Retenidas al confirmarse el pago'],
+    ['Comisiones registradas',esc(num(stats?.comisiones_count)),'Una por pedido pagado y tienda'],
+    ['Base liquidable',money(num(stats?.base_liquidable)),'Subtotal de tienda sobre el que se calcula'],
+    ['Neto para vendedores',money(num(stats?.neto_vendedores)),'Base menos comision'],
+    ['Tasa efectiva',rate===null?'Sin datos':`${esc(Math.round(rate*100)/100)}%`,rate===null?'Aun sin base liquidable':'Comision sobre base liquidable']
+  ];
+}
+function commissionsSettlementRows(stats){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  return [
+    ['Pendiente','comisiones_liq_pendiente'],
+    ['Pagada','comisiones_liq_pagada'],
+    ['Revisada','comisiones_liq_revisada'],
+    ['Rechazada','comisiones_liq_rechazada']
+  ].map(([label,key])=>[label,money(num(stats?.[key]))]);
+}
+function commissionsCollectedReportSection(stats){
+  const rows=commissionsCollectedMetrics(stats).map(([label,value,hint])=>`<tr><td><b>${esc(label)}</b></td><td>${value}</td><td class="cc-muted">${esc(hint)}</td></tr>`).join('');
+  const settlement=commissionsSettlementRows(stats).map(([label,value])=>`<tr><td><b>${esc(label)}</b></td><td>${value}</td></tr>`).join('');
+  return `<section class="cc-card mt-5" data-commissions-collected-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reporte de comisiones recaudadas</h2><p class="cc-muted">Comisiones retenidas por la plataforma sobre pedidos con pago confirmado.</p></div></div><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Indicador</th><th>Valor</th><th>Detalle</th></tr></thead><tbody data-commissions-collected-rows>${rows}</tbody></table></div><h3 class="text-xl font-bold mt-5">Estado administrativo de liquidacion</h3><p class="cc-muted">Clasificacion administrativa posterior; no altera lo ya recaudado.</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Estado</th><th>Comision</th></tr></thead><tbody data-commissions-settlement-rows>${settlement}</tbody></table></div></section>`;
+}
 async function reportsPage(){
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
   const s=stats.data?.stats||{};
   const requests = del.data?.requests||[];
   main().innerHTML=shell('Reportes','cc-reports-analytics.svg','Reportes','Resumen real construido con endpoints administrativos.')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Usuarios activos</b><strong>${esc(s.total_usuarios_activos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Productos</b><strong>${esc(s.total_productos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Pedidos</b><strong>${esc(s.total_pedidos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Ventas</b><strong>${money(s.ventas_totales||0)}</strong><span>pagadas</span></article></section>`+
   salesTotalsReportSection(s)+
+  commissionsCollectedReportSection(s)+
   `<section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Solicitudes de eliminación de cuenta</h2>`+
   `<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>`+
   requests.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.correo)}</td><td>${esc(r.rol)}</td><td><span class="cc-chip ${chipClass(r.solicitud_eliminacion_estado)}">${esc(r.solicitud_eliminacion_estado)}</span></td><td>${esc(r.solicitud_eliminacion_fecha)}</td><td><button class="cc-btn outline" type="button" data-review-delete-request="${esc(r.id)}">Revisar</button></td></tr>`).join('')+
