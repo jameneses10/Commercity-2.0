@@ -10,7 +10,7 @@ let pendingProductWebP = null;
 let rawPage = location.pathname.split('/').pop() || 'vendedor.html';
 if (rawPage && !rawPage.includes('.')) rawPage += '.html';
 const page = rawPage;
-const sellerPages = new Set(['vendedor.html','vendedor-tienda.html','vendedor-productos.html','vendedor-producto-form.html','vendedor-pedidos.html','vendedor-envios.html','vendedor-devoluciones.html','vendedor-resenas.html','vendedor-reputacion.html','vendedor-ganancias.html','vendedor-configuracion.html']);
+const sellerPages = new Set(['vendedor.html','vendedor-tienda.html','vendedor-productos.html','vendedor-producto-form.html','vendedor-pedidos.html','vendedor-envios.html','vendedor-devoluciones.html','vendedor-resenas.html','vendedor-reputacion.html','vendedor-ganancias.html','vendedor-reportes.html','vendedor-configuracion.html']);
 const RETURN_STATUS_LABELS = { solicitada:'Solicitada', en_revision:'En revisión', aprobada:'Aprobada', rechazada:'Rechazada', producto_recibido:'Producto recibido', reembolso_simulado:'Reembolso simulado', cerrada:'Cerrada' };
 function returnStatusLabel(estado){ return RETURN_STATUS_LABELS[estado] || 'Estado no disponible'; }
 const RETURN_ACTIONABLE_STATES = new Set(['solicitada','en_revision']);
@@ -692,6 +692,61 @@ function bindReturnActions(container){
   });
 }
 
+const storePerformanceState={loading:false};
+function storePerformanceSection(){
+  return `<section class="cc-card mt-5" data-store-performance><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Desempeño de la tienda</h2><p class="cc-muted">Indicadores acumulados de ventas pagadas y catálogo.</p></div></div><p class="cc-muted mt-3" data-store-performance-status aria-live="polite">Cargando desempeño de la tienda...</p><section class="cc-grid cols-4 mt-3" data-store-performance-metrics></section></section>`;
+}
+function storePerformanceMetrics(stats){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const orders=num(stats?.total_pedidos);
+  const gross=num(stats?.ventas_brutas);
+  const units=num(stats?.total_productos_vendidos);
+  const net=num(stats?.ganancia_vendedor_90);
+  const commission=num(stats?.comision_plataforma_10);
+  const average=orders>0?gross/orders:null;
+  return [
+    ['Pedidos pagados',esc(orders),'Pedidos con pago confirmado'],
+    ['Ventas brutas',money(gross),'Total facturado'],
+    ['Unidades vendidas',esc(units),'Productos despachados'],
+    ['Ticket promedio',average===null?'Sin datos':money(average),average===null?'Aún sin pedidos':'Ventas brutas por pedido'],
+    ['Ganancia neta',money(net),'Neto del vendedor'],
+    ['Comisión plataforma',money(commission),'Retenido por CommerCity'],
+    ['Catálogo activo',`${esc(num(stats?.productos_activos))} / ${esc(num(stats?.total_productos))}`,'Productos activos del total'],
+    ['Productos agotados',esc(num(stats?.productos_agotados)),'Requieren reposición']
+  ];
+}
+function renderStorePerformance(root,stats){
+  const grid=root.querySelector('[data-store-performance-metrics]');
+  if(!grid) return;
+  grid.innerHTML=storePerformanceMetrics(stats).map(([label,value,hint])=>`<article class="cc-card cc-metric-card"><b>${esc(label)}</b><strong>${value}</strong><span>${esc(hint)}</span></article>`).join('');
+}
+async function loadStorePerformance(){
+  const root=document.querySelector('[data-store-performance]');
+  if(!root||storePerformanceState.loading) return;
+  storePerformanceState.loading=true;
+  const status=root.querySelector('[data-store-performance-status]');
+  if(status) status.textContent='Cargando desempeño de la tienda...';
+  try{
+    const data=await getStats();
+    if(data?.error) throw data.error;
+    renderStorePerformance(root,data?.stats||{});
+    if(status) status.textContent='Indicadores acumulados de la tienda.';
+  }catch(error){
+    const grid=root.querySelector('[data-store-performance-metrics]');
+    if(grid) grid.innerHTML='';
+    if(status) status.textContent=`No fue posible cargar el desempeño de la tienda. ${error?.message||''}`.trim();
+  }finally{
+    storePerformanceState.loading=false;
+  }
+}
+async function reportsPage(){
+  main().innerHTML=pageShell('Reportes','cc-reports-analytics.svg','Reportes','Ventas por período, productos vendidos, stock y desempeño de la tienda.','<a class="cc-btn outline" href="vendedor-ganancias.html">Ganancias</a>')+storePerformanceSection()+salesReportSection()+topProductsSection()+stockAlertsSection();
+  bindSalesReport();
+  await loadStorePerformance();
+  await loadSalesReport('daily',1);
+  await loadTopProducts();
+  await loadStockAlerts();
+}
 async function init(){
   if(!sellerPages.has(page)) return;
   const user=await sellerSession();
@@ -706,6 +761,7 @@ async function init(){
   if(page==='vendedor-resenas.html') await reviewsPage();
   if(page==='vendedor-reputacion.html') await reputationPage();
   if(page==='vendedor-ganancias.html') await earningsPage();
+  if(page==='vendedor-reportes.html') await reportsPage();
   if(page==='vendedor-configuracion.html') await configPage(user);
 }
 init();

@@ -26,6 +26,7 @@ const MENUS = {
       { key: 'resenas', label: 'Reseñas', href: 'vendedor-resenas.html', icon: 'cc-rating-star-review.svg', routes: ['vendedor-resenas.html'] },
       { key: 'reputacion', label: 'Reputación', href: 'vendedor-reputacion.html', icon: 'cc-rating-star-review.svg', routes: ['vendedor-reputacion.html'] },
       { key: 'ganancias', label: 'Ganancias', href: 'vendedor-ganancias.html', icon: 'cc-commission.svg', routes: ['vendedor-ganancias.html'] },
+      { key: 'reportes', label: 'Reportes', href: 'vendedor-reportes.html', icon: 'cc-reports-analytics.svg', routes: ['vendedor-reportes.html'] },
       { key: 'configuracion', label: 'Configuración', href: 'vendedor-configuracion.html', icon: 'cc-settings-general.svg', routes: ['vendedor-configuracion.html'] }
     ]
   },
@@ -76,6 +77,7 @@ const ROUTE_ROLES = {
   'vendedor-resenas.html': 'vendedor',
   'vendedor-reputacion.html': 'vendedor',
   'vendedor-ganancias.html': 'vendedor',
+  'vendedor-reportes.html': 'vendedor',
   'vendedor-configuracion.html': 'vendedor',
   'comprador.html': 'comprador',
   'mis-pedidos.html': 'comprador',
