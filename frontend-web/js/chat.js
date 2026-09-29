@@ -27,6 +27,21 @@ const realMessageIds=new Set();
 let activeConversationId=null;
 function chatEsc(value){ return String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])); }
 function setChatState(text){ if(chatState) chatState.textContent=text; }
+/* ── RF-288: estado de conexion en linea / fuera de linea ──
+   El booleano lo calcula el servidor con su propio reloj; aqui solo se pinta.
+   Se refresca con la lista de conversaciones, sin transporte en tiempo real. */
+const presenceByConversation=new Map();
+function presenceLabel(online){ return online?'En linea':'Fuera de linea'; }
+function presenceBadgeHtml(online){
+ const on=online===true;
+ return `<span class="inline-flex items-center gap-1 text-xs font-semibold ${on?'text-emerald-600':'text-slate-400'}" data-chat-presence="${on?'1':'0'}"><span class="w-2 h-2 rounded-full ${on?'bg-emerald-500':'bg-slate-400'}"></span>${presenceLabel(on)}</span>`;
+}
+function renderHeaderPresence(conversationId){
+ if(!chatState) return;
+ const online=presenceByConversation.get(String(conversationId));
+ if(online===undefined) return;
+ chatState.innerHTML=presenceBadgeHtml(online);
+}
 function setChatTitle(text){ if(chatTitle) chatTitle.textContent=text; }
 function conversationLabel(conversation){
   return conversation?.producto_nombre || conversation?.tienda_nombre || conversation?.vendedor_nombre || conversation?.comprador_nombre || `Conversacion ${conversation?.id ?? ''}`.trim();
@@ -34,7 +49,7 @@ function conversationLabel(conversation){
 function conversationButtonHtml(conversation){
   const label=chatEsc(conversationLabel(conversation));
   const last=chatEsc(conversation?.ultimo_mensaje || 'Sin mensajes');
-  return `<button class="cc-conversation w-full p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left flex items-center gap-3 transition-all" type="button" data-chat-contact="${label}" data-chat-conversation="${chatEsc(conversation?.id)}"><img class="cc-avatar w-10 h-10 rounded-full bg-orange-100 p-2" src="assets/icons/cc-chat-messages.svg" alt=""><div class="flex-1 overflow-hidden"><b class="text-sm font-bold text-slate-900 dark:text-white block truncate Poppins">${label}</b><small class="text-xs text-slate-400 block truncate">${last}</small></div></button>`;
+  return `<button class="cc-conversation w-full p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left flex items-center gap-3 transition-all" type="button" data-chat-contact="${label}" data-chat-conversation="${chatEsc(conversation?.id)}"><img class="cc-avatar w-10 h-10 rounded-full bg-orange-100 p-2" src="assets/icons/cc-chat-messages.svg" alt=""><div class="flex-1 overflow-hidden"><b class="text-sm font-bold text-slate-900 dark:text-white block truncate Poppins">${label}</b><small class="text-xs text-slate-400 block truncate">${last}</small>${presenceBadgeHtml(conversation?.contraparte_en_linea===true)}</div></button>`;
 }
 function messageRowHtml(message){
   const id=message?.id;
@@ -58,7 +73,13 @@ async function loadChatMessages(conversationId){
     list.forEach(item=>{ if(item?.id!==undefined&&item?.id!==null) realMessageIds.add(String(item.id)); });
     messages.innerHTML=list.length?list.map(messageRowHtml).join(''):'<p class="cc-muted">Esta conversacion no tiene mensajes.</p>';
     if(payload.conversation) setChatTitle(conversationLabel(payload.conversation));
-    setChatState(`${list.length} mensaje${list.length===1?'':'s'}`);
+    // RF-288: el encabezado pasa a mostrar el estado de conexion de la contraparte.
+    if(payload.conversation && payload.conversation.contraparte_en_linea!==undefined){
+      presenceByConversation.set(String(conversationId), payload.conversation.contraparte_en_linea===true);
+      renderHeaderPresence(conversationId);
+    } else {
+      setChatState(`${list.length} mensaje${list.length===1?'':'s'}`);
+    }
     messages.scrollTop=messages.scrollHeight;
   }catch(error){
     realMessageIds.clear();
@@ -95,6 +116,8 @@ async function loadChatConversations(){
     const response=await api.get('/chat/conversations');
     const list=Array.isArray(response.data?.conversations)?response.data.conversations:[];
     if(!list.length){ conversationList.innerHTML='<p class="cc-muted p-3">No tienes conversaciones todavia.</p>'; setChatState('Sin conversaciones'); return; }
+    presenceByConversation.clear();
+    list.forEach(item=>{ if(item?.id!==undefined&&item?.id!==null) presenceByConversation.set(String(item.id), item.contraparte_en_linea===true); });
     conversationList.innerHTML=list.map(conversationButtonHtml).join('');
     // RF-287: si se llega desde producto, pedido o perfil de tienda, abrir esa
     // conversacion; si no viene o no pertenece al usuario, abrir la primera.
@@ -118,4 +141,28 @@ messages?.addEventListener('click',event=>{
   const button=event.target.closest('[data-chat-report]');
   if(button) reportChatMessage(button);
 });
+/* RF-288: refresco periodico del estado de conexion. No hay transporte en
+   tiempo real en el proyecto, asi que se reconsulta la lista y se actualizan
+   solo las insignias, sin volver a pintar la lista ni perder la conversacion
+   abierta ni el scroll de los mensajes. */
+const PRESENCE_REFRESH_MS=60000;
+async function refreshPresence(){
+ if(!conversationList || !token()) return;
+ try{
+  const response=await api.get('/chat/conversations');
+  const list=Array.isArray(response.data?.conversations)?response.data.conversations:[];
+  list.forEach(item=>{
+   if(item?.id===undefined||item?.id===null) return;
+   const online=item.contraparte_en_linea===true;
+   presenceByConversation.set(String(item.id),online);
+   const row=conversationList.querySelector(`[data-chat-conversation="${CSS.escape(String(item.id))}"]`);
+   const badge=row?.querySelector('[data-chat-presence]');
+   if(badge) badge.outerHTML=presenceBadgeHtml(online);
+  });
+  if(activeConversationId!==null) renderHeaderPresence(activeConversationId);
+ }catch(error){
+  // Un fallo de refresco no debe alterar la conversacion abierta.
+ }
+}
+window.setInterval(refreshPresence,PRESENCE_REFRESH_MS);
 loadChatConversations();

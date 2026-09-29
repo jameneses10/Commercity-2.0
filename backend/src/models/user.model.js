@@ -62,6 +62,9 @@ async function createUser({ rolId, nombre, correo, passwordHash, telefono = null
 }
 
 async function updateLastLogin(id){ await pool.query('UPDATE usuarios SET ultimo_login_at=NOW() WHERE id=?',[id]); }
+// RF-288: refresca la marca de actividad solo si ya esta obsoleta, de modo que
+// una peticion autenticada escribe como maximo una vez por intervalo de latido.
+async function touchActivity(id, throttleSeconds){ const [r]=await pool.query('UPDATE usuarios SET ultima_actividad_at=NOW() WHERE id=? AND (ultima_actividad_at IS NULL OR ultima_actividad_at < DATE_SUB(NOW(), INTERVAL ? SECOND))',[id,throttleSeconds]); return r.affectedRows; }
 async function updatePassword(id, passwordHash, conn = pool) {
   const [result] = await conn.query('UPDATE usuarios SET password_hash = ? WHERE id = ?', [passwordHash, id]);
   return result.affectedRows;
@@ -103,4 +106,4 @@ async function incrementTokenVersion(id, conn = pool) {
   return result.affectedRows;
 }
 
-module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, upgradeToSeller, reactivateAccount, updateUserStatusConditional, incrementTokenVersion };
+module.exports = { sanitizeUser, findUserByEmail, findUserById, createUser, updateLastLogin, updatePassword, updateBasic, upgradeToSeller, reactivateAccount, updateUserStatusConditional, incrementTokenVersion , touchActivity };

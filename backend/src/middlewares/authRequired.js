@@ -1,6 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
 const { errorResponse } = require('../utils/response');
-const { findUserById } = require('../models/user.model');
+const { findUserById, touchActivity } = require('../models/user.model');
+const { PRESENCE_TOUCH_SECONDS } = require('../config/presence');
 
 async function authRequired(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -43,6 +44,15 @@ async function authRequired(req, res, next) {
       correo: dbUser.correo,
       rol: dbUser.rol,
     };
+
+    // RF-288: latido de presencia. Nunca puede afectar a la autenticacion, por
+    // eso se ignora cualquier fallo en lugar de propagarlo.
+    try {
+      await touchActivity(dbUser.id, PRESENCE_TOUCH_SECONDS);
+    } catch (presenceError) {
+      console.warn('No fue posible registrar la actividad del usuario.', presenceError.message);
+    }
+
     return next();
   } catch (error) {
     return res.status(401).json(errorResponse('Token inválido o expirado.'));
