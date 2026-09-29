@@ -1,4 +1,5 @@
 import { api, token } from './api.js';
+import { UPLOADS_BASE_URL } from './config.js'; // RF-291
 const form=document.querySelector('[data-chat-form]');
 const input=document.querySelector('[data-chat-input]');
 const messages=document.querySelector('[data-chat-messages]');
@@ -6,15 +7,80 @@ const alertBox=document.querySelector('[data-chat-alert]');
 const emojiPanel=document.querySelector('[data-emoji-panel]');
 const fileInput=document.querySelector('[data-file-input]');
 const fileState=document.querySelector('[data-file-state]');
-let selectedFile='';
+/* ── RF-291: adjuntar imagenes o documentos ──
+   El backend ya acepta hasta 5 archivos de 10 MB en el mismo POST que el texto
+   (chatUpload.array('files',5)). Antes solo se guardaba el NOMBRE del archivo y
+   el formulario no llamaba a la API. Ahora se conservan los File reales. */
+const CHAT_MAX_FILES=5;
+const CHAT_MAX_BYTES=10*1024*1024;
+const CHAT_ACCEPT='image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,application/pdf,.pdf,.doc,.docx';
+let selectedFiles=[];
 function stamp(){return new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});}
 function hideAlert(){alertBox?.classList.add('cc-hidden');}
 document.querySelector('[data-emoji-toggle]')?.addEventListener('click',()=>emojiPanel?.classList.toggle('cc-hidden'));
 emojiPanel?.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{input.value+=btn.textContent;input.focus();emojiPanel.classList.add('cc-hidden');hideAlert();}));
 document.querySelector('[data-file-button]')?.addEventListener('click',()=>fileInput?.click());
-fileInput?.addEventListener('change',()=>{selectedFile=fileInput.files?.[0]?.name||'';fileState.textContent=selectedFile?`Archivo listo para enviar: ${selectedFile}`:'';hideAlert();});
+// Se alinea el selector con los limites REALES del servidor sin tocar el HTML.
+if(fileInput){ fileInput.multiple=true; fileInput.accept=CHAT_ACCEPT; }
+function describeFiles(){
+ if(!fileState) return;
+ if(!selectedFiles.length){ fileState.textContent=''; return; }
+ const names=selectedFiles.map(file=>file.name).join(', ');
+ fileState.textContent=`${selectedFiles.length} archivo${selectedFiles.length===1?'':'s'} listo${selectedFiles.length===1?'':'s'} para enviar: ${names}`;
+}
+function clearFiles(){ selectedFiles=[]; if(fileInput) fileInput.value=''; describeFiles(); }
+fileInput?.addEventListener('change',()=>{
+ const picked=[...(fileInput.files||[])];
+ const tooBig=picked.find(file=>file.size>CHAT_MAX_BYTES);
+ if(tooBig){ selectedFiles=[]; fileInput.value=''; if(fileState) fileState.textContent=`${tooBig.name} supera el maximo de 10 MB.`; return; }
+ if(picked.length>CHAT_MAX_FILES){ selectedFiles=[]; fileInput.value=''; if(fileState) fileState.textContent=`Puedes adjuntar como maximo ${CHAT_MAX_FILES} archivos.`; return; }
+ selectedFiles=picked; describeFiles(); hideAlert();
+});
 document.querySelectorAll('[data-chat-contact]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-chat-contact]').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelector('[data-chat-title]').textContent=btn.dataset.chatContact;document.querySelector('[data-chat-state]').textContent=btn.dataset.chatStatus;}));
-form?.addEventListener('submit',(event)=>{event.preventDefault();const text=input.value.trim();if(!text&&!selectedFile){alertBox?.classList.remove('cc-hidden');return;}const row=document.createElement('div');row.className='cc-message-row mine';const article=document.createElement('article');article.className='cc-message mine';const messageText=document.createElement('p');messageText.textContent=text||'Archivo adjunto preparado para envío.';article.appendChild(messageText);if(selectedFile){const attachment=document.createElement('p');attachment.className='cc-attachment-note';attachment.textContent=`Adjunto preparado: ${selectedFile}`;article.appendChild(attachment);}const timeElement=document.createElement('time');timeElement.textContent=stamp();article.appendChild(timeElement);row.appendChild(article);messages.appendChild(row);input.value='';selectedFile='';if(fileInput) fileInput.value='';fileState.textContent='';hideAlert();messages.scrollTop=messages.scrollHeight;});
+/* RF-291: envio real. El handler anterior solo fabricaba una fila local con el
+   un aviso local de adjunto y no llamaba a la API. Ahora se envia el mismo
+   multipart que espera el endpoint publicado: campo 'files' para los adjuntos y
+   'contenido' para el texto. api.form ya pasa el FormData sin Content-Type. */
+async function sendChatMessage(){
+ if(activeConversationId===null){ setChatState('Abre una conversacion antes de enviar.'); return false; }
+ if(!token()){ location.href='login.html'; return false; }
+ const text=(input?.value||'').trim();
+ if(!text && !selectedFiles.length){ alertBox?.classList.remove('cc-hidden'); return false; }
+ if(text.length>1000){ setChatState('El mensaje no puede superar 1000 caracteres.'); return false; }
+ const payload=new FormData();
+ if(text) payload.append('contenido',text);
+ selectedFiles.forEach(file=>payload.append('files',file,file.name));
+ const submitBtn=form?.querySelector('[type="submit"]');
+ if(submitBtn) submitBtn.disabled=true;
+ setChatState(selectedFiles.length?'Enviando mensaje y adjuntos...':'Enviando mensaje...');
+ try{
+  const response=await api.form(`/chat/conversations/${encodeURIComponent(activeConversationId)}/messages`,payload);
+  const created=response?.data?.message;
+  if(!created || created.id===undefined || created.id===null) throw new Error('El servidor no devolvio el mensaje.');
+  // El id proviene SOLO de la respuesta real del endpoint (regla de RF-278).
+  realMessageIds.add(String(created.id));
+  if(messages){
+   const placeholder=messages.querySelector('.cc-muted');
+   if(placeholder && !messages.querySelector('[data-chat-message]')) messages.innerHTML='';
+   messages.insertAdjacentHTML('beforeend',messageRowHtml(created));
+   messages.scrollTop=messages.scrollHeight;
+  }
+  if(input) input.value='';
+  clearFiles();
+  hideAlert();
+  renderHeaderPresence(activeConversationId);
+  return true;
+ }catch(error){
+  const code=Number(error?.status ?? error?.statusCode ?? 0);
+  if(code===401){ location.href='login.html'; return false; }
+  if(code===404) setChatState('Conversacion no encontrada o no participas en ella.');
+  else setChatState(`No fue posible enviar el mensaje. ${error?.message || ''}`.trim());
+  return false;
+ }finally{
+  if(submitBtn) submitBtn.disabled=false;
+ }
+}
+form?.addEventListener('submit',event=>{ event.preventDefault(); sendChatMessage(); });
 
 /* ── RF-278: integracion minima de lectura y reporte de mensajes ──
    Solo consume GET /chat/conversations, GET /chat/conversations/:id/messages
@@ -25,6 +91,37 @@ const chatState=document.querySelector('[data-chat-state]');
 // Solo se puede reportar un id devuelto por el endpoint real de mensajes.
 const realMessageIds=new Set();
 let activeConversationId=null;
+/* RF-291: resuelve la URL de un adjunto servido por /uploads. Mismo criterio que
+   admin.js safeEvidenceUrl: devuelve null para cualquier cosa que no sea una ruta
+   de /uploads o una URL http(s), para no convertir un javascript: o data: en href. */
+function chatFileUrl(value){
+ if(!value) return null;
+ const raw=String(value).trim();
+ if(raw.startsWith('/uploads')) return `${UPLOADS_BASE_URL}${raw.replace('/uploads','')}`;
+ if(/^https?:///i.test(raw)) return raw;
+ return null;
+}
+function chatFileSize(bytes){
+ const n=Number(bytes);
+ if(!Number.isFinite(n)||n<=0) return '';
+ if(n<1024) return `${n} B`;
+ if(n<1024*1024) return `${(n/1024).toFixed(0)} KB`;
+ return `${(n/(1024*1024)).toFixed(1)} MB`;
+}
+function attachmentsHtml(archivos){
+ if(!Array.isArray(archivos)||!archivos.length) return '';
+ const items=archivos.map(file=>{
+  const href=chatFileUrl(file?.url_archivo ?? file?.url);
+  const name=chatEsc(file?.nombre_original || 'Archivo adjunto');
+  const size=chatFileSize(file?.size_bytes);
+  const meta=size?` <span class="text-slate-400">(${chatEsc(size)})</span>`:'';
+  if(!href) return `<li class="text-xs text-slate-400">${name}${meta}</li>`;
+  const isImage=/^image//.test(String(file?.mime_type||''));
+  const preview=isImage?`<img class="cc-chat-attachment-img max-h-40 rounded-lg mt-1" src="${chatEsc(href)}" alt="${name}" loading="lazy">`:'';
+  return `<li class="text-xs mt-1"><a class="underline text-[#2276ff]" href="${chatEsc(href)}" target="_blank" rel="noopener noreferrer">${name}</a>${meta}${preview}</li>`;
+ }).join('');
+ return `<ul class="cc-chat-attachments mt-1">${items}</ul>`;
+}
 function chatEsc(value){ return String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])); }
 function setChatState(text){ if(chatState) chatState.textContent=text; }
 /* ── RF-288: estado de conexion en linea / fuera de linea ──
@@ -59,7 +156,7 @@ function messageRowHtml(message){
   const action=message?.eliminado?'':(reported
     ? `<span class="cc-chip orange" data-chat-reported="${chatEsc(id)}">Reportado</span>`
     : `<button class="cc-btn outline text-xs" type="button" data-chat-report="${chatEsc(id)}">Reportar mensaje</button>`);
-  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 block">${author}</b><p>${body}</p><time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}</div></article></div>`;
+  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 block">${author}</b><p>${body}</p>${message?.eliminado?'':attachmentsHtml(message?.archivos)}<time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}</div></article></div>`;
 }
 async function loadChatMessages(conversationId){
   if(!messages) return;
