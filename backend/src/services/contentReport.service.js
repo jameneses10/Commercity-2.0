@@ -134,15 +134,18 @@ async function resolve(type, adminUser, reportId, payload = {}, ip) {
     await conn.beginTransaction();
     const updated = await model.update(type, id, { estado, respuesta_admin }, conn);
     let accionAplicada = null;
+    let targetTransicion = null;
     if (payload.accion_target) {
-      accionAplicada = await applyTargetAction(conn, type, existing, payload.accion_target);
+      const resultado = await applyTargetAction(conn, type, existing, payload.accion_target);
+      accionAplicada = resultado.accion;
+      targetTransicion = { target_estado_anterior: resultado.estado_anterior, target_estado_nuevo: resultado.estado_nuevo };
     }
     await logService.log(conn, {
       usuario_id: adminUser.id,
       accion: 'reporte_resuelto',
       entidad: meta(type).entidad,
       entidad_id: id,
-      detalle: { estado: updated.estado, accion_target: accionAplicada },
+      detalle: { estado_anterior: existing.estado, estado: updated.estado, accion_target: accionAplicada, ...(targetTransicion || {}) },
       ip
     });
     await conn.commit();
@@ -159,18 +162,21 @@ async function resolve(type, adminUser, reportId, payload = {}, ip) {
 async function applyTargetAction(conn, type, report, accion) {
   if (type === 'stores') {
     if (!['pausada', 'suspendida', 'activa'].includes(accion)) throw err('accion_target inválida para tiendas.', 400);
+    const [[previo]] = await conn.query('SELECT estado FROM tiendas WHERE id=? LIMIT 1', [report.tienda_id]);
     await conn.query('UPDATE tiendas SET estado=? WHERE id=?', [accion, report.tienda_id]);
-    return accion;
+    return { accion, estado_anterior: previo ? previo.estado : null, estado_nuevo: accion };
   }
   if (type === 'reviews') {
     if (!['aprobada', 'rechazada', 'ocultada'].includes(accion)) throw err('accion_target inválida para reseñas.', 400);
+    const [[previo]] = await conn.query('SELECT estado FROM resenas WHERE id=? LIMIT 1', [report.resena_id]);
     await conn.query('UPDATE resenas SET estado=? WHERE id=?', [accion, report.resena_id]);
-    return accion;
+    return { accion, estado_anterior: previo ? previo.estado : null, estado_nuevo: accion };
   }
   if (type === 'messages') {
     if (accion !== 'eliminar') throw err('accion_target inválida para mensajes.', 400);
+    const [[previo]] = await conn.query('SELECT eliminado FROM mensajes WHERE id=? LIMIT 1', [report.mensaje_id]);
     await conn.query('UPDATE mensajes SET eliminado=TRUE WHERE id=?', [report.mensaje_id]);
-    return accion;
+    return { accion, estado_anterior: previo ? Boolean(Number(previo.eliminado)) : null, estado_nuevo: true };
   }
   throw err('Tipo de reporte no soportado.', 400);
 }

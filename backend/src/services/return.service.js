@@ -87,7 +87,7 @@ async function adminResolve(user, id, payload, meta = {}) {
       if (!row) throw err('Solicitud de devolución no encontrada.', 404);
       if (!(await model.findRefundByReturnId(row.id, conn))) await model.createSimulatedRefund(conn, { devolucion_id: row.id, pedido_id: row.pedido_id, monto: row.monto_estimado });
       await model.updateAdmin(id, payload, conn);
-      await logService.log(conn, { usuario_id:user.id, accion:'reembolso_simulado', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
+      await logService.log(conn, { usuario_id:user.id, accion:'reembolso_simulado', entidad:'devolucion', entidad_id:id, detalle:{ estado_anterior:row?.estado ?? null, ...payload }, ip:meta.ip });
       await conn.commit();
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
     updated = await model.findById(id);
