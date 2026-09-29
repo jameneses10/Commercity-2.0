@@ -1,5 +1,6 @@
 import { api, token, updateStoredUser } from './api.js';
 import { money, showMessage } from './ui.js';
+import { exportSheetsToExcel, objectRows, tableRows, filterSummaryRows } from './report-export.js';
 import { UPLOADS_BASE_URL } from './config.js';
 
 const page = location.pathname.split('/').pop() || 'admin.html';
@@ -561,7 +562,7 @@ function reportFiltersSection(){
   field('producto_estado','Estado del producto',`<select class="cc-input" data-report-filter="producto_estado"><option value="">Todos</option>${opt(['activo','agotado','oculto','eliminado'])}</select>`)+
   field('usuario_estado','Estado del usuario',`<select class="cc-input" data-report-filter="usuario_estado"><option value="">Todos</option>${opt(['activo','bloqueado','inactivo','baneado'])}</select>`)+
   `</div><p class="cc-muted mt-3">Los reportes de ventas, comisiones y productos se calculan siempre sobre pedidos pagados.</p>`+
-  `<div class="cc-card-actions-row mt-3"><button class="cc-btn" type="button" data-report-filters-apply>Aplicar filtros</button><button class="cc-btn outline" type="button" data-report-filters-clear>Limpiar</button></div>`+
+  `<div class="cc-card-actions-row mt-3"><button class="cc-btn" type="button" data-report-filters-apply>Aplicar filtros</button><button class="cc-btn outline" type="button" data-report-filters-clear>Limpiar</button><button class="cc-btn outline" type="button" data-report-export>Exportar a Excel</button></div>`+
   `<p class="cc-muted mt-3" data-report-filters-status aria-live="polite">Sin filtros aplicados: se muestran los reportes globales.</p>`+
   `<section class="mt-5" data-report-filters-results></section></section>`;
 }
@@ -614,6 +615,7 @@ function bindReportFilters(){
   const root=document.querySelector('[data-report-filters]');
   if(!root) return;
   root.querySelector('[data-report-filters-apply]')?.addEventListener('click',()=>applyReportFilters());
+  root.querySelector('[data-report-export]')?.addEventListener('click',()=>exportAdminReports());
   root.querySelector('[data-report-filters-clear]')?.addEventListener('click',()=>{
     root.querySelectorAll('[data-report-filter]').forEach(input=>{ input.value=''; });
     const results=root.querySelector('[data-report-filters-results]');
@@ -621,6 +623,27 @@ function bindReportFilters(){
     const status=root.querySelector('[data-report-filters-status]');
     if(status) status.textContent='Sin filtros aplicados: se muestran los reportes globales.';
   });
+}
+async function exportAdminReports(){
+  const root=document.querySelector('[data-report-filters]');
+  const status=root?.querySelector('[data-report-filters-status]');
+  const params=root?readReportFilters(root):new URLSearchParams();
+  try{
+    if(status) status.textContent='Generando archivo de Excel...';
+    const query=params.toString();
+    const response=await api.get(`/admin/reports${query?`?${query}`:''}`);
+    const data=response.data||{};
+    exportSheetsToExcel([
+      {name:'Filtros',rows:filterSummaryRows(params)},
+      {name:'Ventas totales',rows:[['Indicador','Valor'],...objectRows(data.ventas,[['Ventas totales','ventas_totales'],['Pedidos pagados','pedidos_pagados'],['Unidades vendidas','unidades_vendidas']])]},
+      {name:'Comisiones',rows:[['Indicador','Valor'],...objectRows(data.comisiones,[['Comisiones recaudadas','comisiones_recaudadas'],['Comisiones registradas','comisiones_count'],['Base liquidable','base_liquidable'],['Neto vendedores','neto_vendedores']])]},
+      {name:'Productos mas vendidos',rows:tableRows(data.top_productos_vendidos,[['Producto','nombre'],['Tienda','tienda_nombre'],['Unidades','unidades_vendidas'],['Total vendido','total_vendido'],['Pedidos','pedidos']])},
+      {name:'Usuarios mas activos',rows:tableRows(data.usuarios_mas_activos,[['Usuario','nombre'],['Correo','correo'],['Rol','rol'],['Estado','estado'],['Acciones','acciones'],['Tipos','acciones_distintas'],['Ultima accion','ultima_accion']])}
+    ],`reportes-admin${query?'-filtrado':''}`);
+    if(status) status.textContent='Archivo de Excel generado con los mismos datos y filtros del reporte.';
+  }catch(error){
+    if(status) status.textContent=`No fue posible exportar los reportes. ${error?.message||''}`.trim();
+  }
 }
 async function reportsPage(){
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);

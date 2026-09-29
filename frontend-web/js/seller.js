@@ -1,5 +1,6 @@
 import { api, token, updateStoredUser } from './api.js';
 import { money, showMessage } from './ui.js';
+import { exportSheetsToExcel, objectRows, tableRows } from './report-export.js';
 import { UPLOADS_BASE_URL } from './config.js';
 import { processImageFileToWebP } from './image-converter.js';
 let pendingStoreLogoWebP = null;
@@ -739,13 +740,44 @@ async function loadStorePerformance(){
     storePerformanceState.loading=false;
   }
 }
+async function exportSellerReports(){
+  const root=document.querySelector('[data-seller-report-export]');
+  const status=root?.querySelector('[data-seller-report-export-status]');
+  try{
+    if(status) status.textContent='Generando archivo de Excel...';
+    const [statsData,salesReport,sold,stock]=await Promise.all([
+      getStats(),
+      getSalesReport(salesReportState.period,salesReportState.page,salesReportState.limit).catch(()=>({report_rows:[]})),
+      getTopProducts().catch(()=>({products:[]})),
+      getStockAlerts().catch(()=>({products:[],low_stock_products:[]}))
+    ]);
+    const stats=statsData?.stats||{};
+    exportSheetsToExcel([
+      {name:'Desempeno de tienda',rows:[['Indicador','Valor'],...objectRows(stats,[['Pedidos pagados','total_pedidos'],['Ventas brutas','ventas_brutas'],['Unidades vendidas','total_productos_vendidos'],['Ganancia neta','ganancia_vendedor_90'],['Comision plataforma','comision_plataforma_10'],['Productos totales','total_productos'],['Productos activos','productos_activos'],['Productos agotados','productos_agotados']])]},
+      {name:`Ventas ${salesReportState.period}`,rows:tableRows(salesReport?.report_rows,[['Periodo','period_start'],['Ventas','sales_count'],['Ventas brutas','gross_total'],['Comision','commission_total'],['Neto vendedor','seller_net_total']])},
+      {name:'Productos vendidos',rows:tableRows(sold?.products,[['Producto','nombre'],['Unidades vendidas','cantidad_vendida'],['Total vendido','total_vendido'],['Stock','stock']])},
+      {name:'Agotados',rows:tableRows(stock?.products,[['Producto','nombre'],['Stock','stock'],['Estado','estado'],['Precio','precio']])},
+      {name:'Stock bajo',rows:tableRows(stock?.low_stock_products,[['Producto','nombre'],['Stock','stock'],['Estado','estado'],['Precio','precio']])}
+    ],'reportes-vendedor');
+    if(status) status.textContent='Archivo de Excel generado con los datos de la seccion Reportes.';
+  }catch(error){
+    if(status) status.textContent=`No fue posible exportar los reportes. ${error?.message||''}`.trim();
+  }
+}
+function sellerReportExportSection(){
+  return `<section class="cc-card mt-5" data-seller-report-export><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Exportar reportes</h2><p class="cc-muted">Genera un archivo de Excel con los reportes de esta seccion.</p></div></div><div class="cc-card-actions-row mt-3"><button class="cc-btn" type="button" data-seller-report-export-run>Exportar a Excel</button></div><p class="cc-muted mt-3" data-seller-report-export-status aria-live="polite">El archivo usa los mismos datos mostrados en esta seccion.</p></section>`;
+}
+function bindSellerReportExport(){
+  document.querySelector('[data-seller-report-export-run]')?.addEventListener('click',()=>exportSellerReports());
+}
 async function reportsPage(){
-  main().innerHTML=pageShell('Reportes','cc-reports-analytics.svg','Reportes','Ventas por período, productos vendidos, stock y desempeño de la tienda.','<a class="cc-btn outline" href="vendedor-ganancias.html">Ganancias</a>')+storePerformanceSection()+salesReportSection()+topProductsSection()+stockAlertsSection();
+  main().innerHTML=pageShell('Reportes','cc-reports-analytics.svg','Reportes','Ventas por período, productos vendidos, stock y desempeño de la tienda.','<a class="cc-btn outline" href="vendedor-ganancias.html">Ganancias</a>')+storePerformanceSection()+salesReportSection()+topProductsSection()+stockAlertsSection()+sellerReportExportSection();
   bindSalesReport();
   await loadStorePerformance();
   await loadSalesReport('daily',1);
   await loadTopProducts();
   await loadStockAlerts();
+  bindSellerReportExport();
 }
 async function init(){
   if(!sellerPages.has(page)) return;
