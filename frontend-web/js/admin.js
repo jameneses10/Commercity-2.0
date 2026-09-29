@@ -457,7 +457,58 @@ async function commissionsPage(){
   });
 }
 async function notificationsPage(){ const [res,count]=await Promise.all([safe('/notifications'),safe('/notifications/unread-count')]); const nots=res.data?.notifications||[]; main().innerHTML=shell('Notificaciones','cc-notification-bell.svg','Alertas','Notificaciones reales del administrador.',`<button class="cc-btn" type="button" data-read-all>Marcar todas leídas (${count.data?.unread_count||0})</button>`)+filters('notifications',[['all','Todas'],['pedido','Pedidos'],['pago','Pagos'],['envio','Envíos'],['devolucion','Devoluciones'],['sistema','Sistema']],'Buscar notificación')+`<section class="cc-grid cols-2">${nots.map(n=>`<article class="cc-card" data-admin-item="notifications" data-status="${esc(norm(n.tipo||'sistema'))}" data-filter-text="${esc(`${n.titulo} ${n.mensaje} ${n.tipo}`)}"><span class="cc-chip ${n.leida?'neutral':'orange'}">${n.leida?'Leída':'No leída'}</span><h2>${esc(n.titulo)}</h2><p class="cc-muted">${esc(n.mensaje)}</p><small>${esc(n.created_at||'')}</small><div class="cc-card-actions-row"><button class="cc-btn outline" type="button" data-notification-read="${esc(n.id)}">Marcar leída</button><button class="cc-btn secondary" type="button" data-notification-delete="${esc(n.id)}">Eliminar</button></div></article>`).join('')}</section>${nots.length?'':empty('cc-notification-bell.svg','Sin notificaciones reales.','La API no devolvió notificaciones.')}`; bindFilters(main()); }
-async function logsPage(){ const logs=(await safe('/admin/logs')).data?.logs||[]; main().innerHTML=shell('Logs','cc-audit-logs.svg','Auditoría','Logs reales del sistema.')+filters('logs',[['all','Todos'],['auth','Autenticación'],['producto','Productos'],['pedido','Pedidos'],['pago','Pagos'],['error','Errores']],'Buscar log')+`<section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Fecha</th><th>IP</th></tr></thead><tbody>${logs.map(l=>`<tr data-admin-item="logs" data-status="${esc(norm(l.entidad||l.modulo||'sistema'))}" data-filter-text="${esc(JSON.stringify(l))}"><td>${esc(l.usuario_nombre||l.usuario_id||'Sistema')}</td><td>${esc(l.accion)}</td><td>${esc(l.entidad||l.modulo||'')}</td><td>${esc(l.created_at||'')}</td><td>${esc(l.ip||'')}</td></tr>`).join('')}</tbody></table></section>${logs.length?'':empty('cc-audit-logs.svg','Sin logs reales.','La API no devolvió logs.')}`; bindFilters(main()); }
+// RF-284: consulta de eventos por fecha, usuario, accion y entidad, server-side.
+const LOG_FILTER_KEYS=['fecha','usuario_id','accion','entidad','entidad_id'];
+function logFilterFormHtml(activeFilters={}){
+  const v=key=>esc(activeFilters[key]??'');
+  return `<section class="cc-card mb-5" data-log-filters><h2 class="text-2xl font-bold">Consultar eventos</h2><p class="cc-muted">La busqueda se ejecuta en el servidor sobre todo el historial.</p>`
+    +`<form class="cc-form cc-form-grid mt-3" id="logFilterForm">`
+    +`<label class="cc-label">Fecha<input class="cc-input" type="date" name="fecha" value="${v('fecha')}"></label>`
+    +`<label class="cc-label">Usuario (ID)<input class="cc-input" type="number" min="1" step="1" name="usuario_id" value="${v('usuario_id')}" placeholder="Ej. 3"></label>`
+    +`<label class="cc-label">Accion<input class="cc-input" type="text" name="accion" maxlength="120" value="${v('accion')}" placeholder="Ej. pago_aprobado"></label>`
+    +`<label class="cc-label">Entidad afectada<input class="cc-input" type="text" name="entidad" maxlength="80" value="${v('entidad')}" placeholder="Ej. pedidos"></label>`
+    +`<label class="cc-label">ID de entidad<input class="cc-input" type="number" min="1" step="1" name="entidad_id" value="${v('entidad_id')}" placeholder="Ej. 12"></label>`
+    +`<div class="cc-card-actions-row"><button class="cc-btn" type="submit">Consultar</button><button class="cc-btn outline" type="button" id="logFilterClear">Limpiar</button></div>`
+    +`</form><p class="cc-muted mt-3" data-log-status aria-live="polite"></p></section>`;
+}
+function logRowsHtml(logs){
+  const list=Array.isArray(logs)?logs:[];
+  if(!list.length) return `<tr><td colspan="6"><b>Sin eventos para esta consulta.</b></td></tr>`;
+  return list.map(l=>`<tr><td>${esc(l.usuario_nombre||(l.usuario_id?`Usuario ${l.usuario_id}`:'Sistema'))}${l.usuario_correo?`<small class="text-xs text-slate-400 block">${esc(l.usuario_correo)}</small>`:''}</td><td>${esc(l.accion||'')}</td><td>${esc(l.entidad||'')}</td><td>${esc(l.entidad_id??'')}</td><td>${esc(l.created_at||'')}</td><td>${esc(l.ip||'')}</td></tr>`).join('');
+}
+async function refreshLogs(activeFilters={},page=1){
+  const body=document.querySelector('[data-log-rows]');
+  const status=document.querySelector('[data-log-status]');
+  const params=new URLSearchParams();
+  LOG_FILTER_KEYS.forEach(key=>{ const value=String(activeFilters[key]??'').trim(); if(value) params.set(key,value); });
+  params.set('page',String(page));
+  if(status) status.textContent='Consultando eventos...';
+  try{
+    const res=await api.get(`/admin/logs?${params.toString()}`);
+    const logs=res.data?.logs||[];
+    if(body) body.innerHTML=logRowsHtml(logs);
+    const applied=LOG_FILTER_KEYS.filter(k=>params.has(k));
+    if(status) status.textContent=`${logs.length} evento${logs.length===1?'':'s'}${applied.length?` · filtros: ${applied.join(', ')}`:''} · pagina ${page}.`;
+  }catch(error){
+    if(body) body.innerHTML=`<tr><td colspan="6"><b>No fue posible consultar los eventos.</b><p class="cc-muted">${esc(error?.message||'')}</p></td></tr>`;
+    if(status) status.textContent='Error en la consulta de eventos.';
+  }
+}
+function bindLogFilters(){
+  const form=document.querySelector('#logFilterForm');
+  form?.addEventListener('submit',event=>{
+    event.preventDefault();
+    const fd=new FormData(event.currentTarget);
+    const next={};
+    LOG_FILTER_KEYS.forEach(key=>{ const value=String(fd.get(key)??'').trim(); if(value) next[key]=value; });
+    refreshLogs(next,1);
+  });
+  document.querySelector('#logFilterClear')?.addEventListener('click',()=>{
+    form?.reset();
+    refreshLogs({},1);
+  });
+}
+async function logsPage(){ const res=await safe('/admin/logs'); const logs=res.data?.logs||[]; main().innerHTML=shell('Logs','cc-audit-logs.svg','Auditoría','Eventos importantes con fecha, usuario, acción y entidad afectada.')+logFilterFormHtml({})+`<section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Acción</th><th>Entidad</th><th>ID entidad</th><th>Fecha</th><th>IP</th></tr></thead><tbody data-log-rows>${logRowsHtml(logs)}</tbody></table></section>`; bindLogFilters(); }
 const REPORT_ESTADO_OPTIONS=[['pendiente','Pendiente'],['revisado','Revisado'],['rechazado','Rechazado'],['accionado','Accionado']];
 function reportFilterForm(prefix,activeFilters){ return `<form class="cc-form cc-form-grid" id="${prefix}FilterForm"><label class="cc-label">Buscar<input class="cc-input" type="text" name="q" maxlength="120" value="${esc(activeFilters.q??'')}"></label><label class="cc-label">Estado<select class="cc-input" name="estado"><option value="">Cualquier estado</option>${REPORT_ESTADO_OPTIONS.map(([v,l])=>`<option value="${v}" ${activeFilters.estado===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="cc-label">Orden<select class="cc-input" name="sort"><option value="newest" ${(activeFilters.sort||'newest')==='newest'?'selected':''}>Más recientes</option><option value="oldest" ${activeFilters.sort==='oldest'?'selected':''}>Más antiguos</option></select></label><div class="cc-card-actions-row"><button class="cc-btn" type="submit">Aplicar filtros</button><button class="cc-btn outline" type="button" id="${prefix}FilterClear">Limpiar filtros</button></div></form>`; }
 function productReportsListHtml(reports){ return reports.length?`<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Producto</th><th>Reportado por</th><th>Motivo</th><th>Descripción</th><th>Estado</th><th>Respuesta admin</th><th>Fecha</th></tr></thead><tbody>${reports.map(r=>`<tr data-admin-item="product-reports"><td>${esc(r.producto_nombre||'')}</td><td>${esc(r.usuario_nombre||'')}</td><td>${esc(r.motivo||'')}</td><td>${esc(r.descripcion||'')}</td><td><span class="cc-chip ${chipClass(r.estado)}">${esc(r.estado)}</span></td><td>${esc(r.respuesta_admin||'')}</td><td>${esc(r.created_at||'')}</td></tr>`).join('')}</tbody></table></div>`:empty('cc-reports-analytics.svg','Sin reportes de productos.','No se encontraron reportes de productos para los filtros seleccionados.'); }
