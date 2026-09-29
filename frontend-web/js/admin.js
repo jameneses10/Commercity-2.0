@@ -517,6 +517,23 @@ function topProductsPlatformReportSection(products){
   const rows=list.length?list.map((item,index)=>`<tr><td><b>${index+1}</b></td><td><b>${esc(item?.nombre||'Producto')}</b><small class="text-xs text-slate-400 block">ID: ${esc(item?.id??'')}</small></td><td>${esc(item?.tienda_nombre||'Tienda no disponible')}</td><td>${esc(num(item?.unidades_vendidas))}</td><td>${esc(topProductsPlatformShare(item?.unidades_vendidas,totalUnits))}</td><td>${money(num(item?.total_vendido))}</td><td>${esc(num(item?.pedidos))}</td></tr>`).join(''):'<tr><td colspan="7"><b>Sin productos vendidos.</b><p class="cc-muted">Cuando existan pedidos pagados apareceran aqui los mas vendidos de la plataforma.</p></td></tr>';
   return `<section class="cc-card mt-5" data-top-products-platform-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Productos mas vendidos de la plataforma</h2><p class="cc-muted">Ranking global por unidades vendidas en pedidos pagados.</p></div></div><p class="cc-muted mt-3">${esc(list.length)} producto${list.length===1?'':'s'} en el ranking · ${esc(totalUnits)} unidades · ${money(totalRevenue)}</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>#</th><th>Producto</th><th>Tienda</th><th>Unidades</th><th>Participacion</th><th>Total vendido</th><th>Pedidos</th></tr></thead><tbody data-top-products-platform-rows>${rows}</tbody></table></div></section>`;
 }
+function mostActiveUsersTotals(users){
+  const list=Array.isArray(users)?users:[];
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  return { list, totalActions:list.reduce((acc,item)=>acc+num(item?.acciones),0) };
+}
+function mostActiveUsersShare(actions,totalActions){
+  const a=Number(actions), total=Number(totalActions);
+  if(!Number.isFinite(a)||!Number.isFinite(total)||total<=0) return '0%';
+  return `${Math.round((a/total)*1000)/10}%`;
+}
+function mostActiveUsersReportSection(users){
+  const { list, totalActions } = mostActiveUsersTotals(users);
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const dash=value=>{ const text=String(value??'').trim(); return text?esc(text):'<span class="cc-muted">Sin registro</span>'; };
+  const rows=list.length?list.map((item,index)=>`<tr><td><b>${index+1}</b></td><td><b>${esc(item?.nombre||'Usuario')}</b><small class="text-xs text-slate-400 block">${esc(item?.correo||'')}</small></td><td><span class="cc-chip blue">${esc(item?.rol||'no disponible')}</span></td><td><span class="cc-chip ${chipClass(item?.estado)}">${esc(item?.estado||'no disponible')}</span></td><td>${esc(num(item?.acciones))}</td><td>${esc(mostActiveUsersShare(item?.acciones,totalActions))}</td><td>${esc(num(item?.acciones_distintas))}</td><td>${dash(item?.ultima_accion)}</td><td>${dash(item?.ultimo_login_at)}</td></tr>`).join(''):'<tr><td colspan="9"><b>Sin actividad registrada.</b><p class="cc-muted">Cuando existan acciones auditadas apareceran aqui los usuarios mas activos.</p></td></tr>';
+  return `<section class="cc-card mt-5" data-most-active-users-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Usuarios mas activos</h2><p class="cc-muted">Ranking por volumen de acciones auditadas, incluyendo compradores, vendedores y administradores.</p></div></div><p class="cc-muted mt-3">${esc(list.length)} usuario${list.length===1?'':'s'} en el ranking · ${esc(totalActions)} acciones</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>#</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th><th>Participacion</th><th>Tipos</th><th>Ultima accion</th><th>Ultimo acceso</th></tr></thead><tbody data-most-active-users-rows>${rows}</tbody></table></div></section>`;
+}
 async function reportsPage(){
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
   const s=stats.data?.stats||{};
@@ -525,6 +542,7 @@ async function reportsPage(){
   salesTotalsReportSection(s)+
   commissionsCollectedReportSection(s)+
   topProductsPlatformReportSection(s.top_productos_vendidos)+
+  mostActiveUsersReportSection(s.usuarios_mas_activos)+
   `<section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Solicitudes de eliminación de cuenta</h2>`+
   `<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>`+
   requests.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.correo)}</td><td>${esc(r.rol)}</td><td><span class="cc-chip ${chipClass(r.solicitud_eliminacion_estado)}">${esc(r.solicitud_eliminacion_estado)}</span></td><td>${esc(r.solicitud_eliminacion_fecha)}</td><td><button class="cc-btn outline" type="button" data-review-delete-request="${esc(r.id)}">Revisar</button></td></tr>`).join('')+
