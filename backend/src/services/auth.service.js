@@ -5,6 +5,7 @@ const profileModel = require('../models/profile.model');
 const termsService = require('./terms.service');
 const passwordResetService = require('./passwordReset.service');
 const accountService = require('./account.service');
+const logService = require('./log.service');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { signToken } = require('../utils/jwt');
 const { isAdult } = require('../utils/age');
@@ -35,6 +36,7 @@ async function registerUser({ nombre, correo, password, confirmPassword, rol, te
     const [result]=await conn.query(`INSERT INTO usuarios (rol_id,nombre,correo,password_hash,telefono,fecha_nacimiento,estado,acepta_terminos,terminos_version,terminos_aceptados_at) VALUES (?,?,?,?,?,?,'activo',TRUE,?,NOW())`,[role.id,nombre.trim(),normalizedEmail,passwordHash,telefono,fecha_nacimiento||null,termsVersion]);
     await profileModel.ensureProfile(result.insertId, conn);
     await termsService.record(conn,{usuario_id:result.insertId,version:termsVersion,ip:meta.ip,user_agent:meta.userAgent});
+    await logService.log(conn,{usuario_id:result.insertId,accion:'usuario_registrado',entidad:'usuarios',entidad_id:result.insertId,detalle:{rol:normalizedRole},ip:meta.ip});
     await conn.commit();
     const user=await findUserById(result.insertId);
     return sanitizeUser(user);
