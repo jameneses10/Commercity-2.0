@@ -96,8 +96,12 @@ async function loadChatConversations(){
     const list=Array.isArray(response.data?.conversations)?response.data.conversations:[];
     if(!list.length){ conversationList.innerHTML='<p class="cc-muted p-3">No tienes conversaciones todavia.</p>'; setChatState('Sin conversaciones'); return; }
     conversationList.innerHTML=list.map(conversationButtonHtml).join('');
-    const first=conversationList.querySelector('[data-chat-conversation]');
-    if(first){ first.classList.add('active'); setChatTitle(first.dataset.chatContact); await loadChatMessages(first.dataset.chatConversation); }
+    // RF-287: si se llega desde producto, pedido o perfil de tienda, abrir esa
+    // conversacion; si no viene o no pertenece al usuario, abrir la primera.
+    const requested=new URLSearchParams(location.search).get('conversacion');
+    const target=(requested && conversationList.querySelector(`[data-chat-conversation="${CSS.escape(String(requested))}"]`))
+      || conversationList.querySelector('[data-chat-conversation]');
+    if(target){ target.classList.add('active'); setChatTitle(target.dataset.chatContact); await loadChatMessages(target.dataset.chatConversation); }
   }catch(error){
     setChatState(`No fue posible cargar las conversaciones. ${chatEsc(error?.message||'')}`);
   }

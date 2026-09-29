@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { escapeHtml, money } from './ui.js';
 import { UPLOADS_BASE_URL } from './config.js';
 import { userReportSection, bindUserReports } from './user-report.js';
+import { chatStartButton, bindChatStart } from './chat-start.js'; // RF-287
 
 const LEVEL_LABELS = { platino: 'Platino', oro: 'Oro', regular: 'Regular' };
 
@@ -99,6 +100,14 @@ async function loadStoreProfile() {
 
   renderReputation(root, reputationResult);
   renderProducts(root, productsResult);
+
+  // RF-287: chat interno comprador-vendedor desde el perfil de la tienda.
+  const chatHost = root.querySelector('[data-store-content]') || root;
+  const chatStart = chatStartButton({ tienda_id: store.id, vendedor_id: store.usuario_id, label: 'Contactar vendedor' });
+  if (chatStart) {
+    chatHost.insertAdjacentHTML('beforeend', `<section class="cc-card mt-5"><h2 class="text-2xl font-bold">Contactar a esta tienda</h2><p class="cc-muted">Abre un chat interno con el vendedor de esta tienda.</p><div class="cc-card-actions-row mt-3">${chatStart}</div></section>`);
+    bindChatStart();
+  }
 
   const reportHost = root.querySelector('[data-store-content]') || root;
   const sellerReport = userReportSection(store.usuario_id, { titulo: 'Reportar a este vendedor', descripcion: 'Indica un motivo especifico si este vendedor incumple las politicas.' });

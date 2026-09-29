@@ -1,5 +1,29 @@
 import { api } from './api.js';
 import { escapeHtml, money, showToast } from './ui.js';
+import { chatStartButton, bindChatStart } from './chat-start.js'; // RF-287
+
+/* RF-287: chat interno desde el detalle del pedido. El contrato publicado no
+   acepta pedido_id, por lo que el pedido se resuelve a la tienda de cada linea
+   (order.details[].tienda_id). Un pedido puede abarcar varias tiendas, asi que
+   se ofrece un control por tienda distinta, igual que la regla ya publicada de
+   una sola tienda por solicitud de devolucion. */
+function renderOrderChatStart(items) {
+  const anchor = document.querySelector('a[href="chat.html"]');
+  if (!anchor) return 0;
+  const stores = new Map();
+  (items || []).forEach(item => {
+    const id = Number(item?.tienda_id);
+    if (!Number.isInteger(id) || id <= 0 || stores.has(id)) return;
+    stores.set(id, String(item?.tienda_nombre || '').trim());
+  });
+  const controls = [...stores.entries()]
+    .map(([id, name]) => chatStartButton({ tienda_id: id, label: name ? `Contactar ${name}` : 'Contactar vendedor' }))
+    .filter(Boolean);
+  if (!controls.length) return 0;
+  anchor.outerHTML = controls.join('');
+  bindChatStart();
+  return controls.length;
+}
 
 function capitalize(s) {
   if (typeof s !== 'string') return '';
@@ -579,6 +603,7 @@ async function initOrderDetail() {
     const itemsBox = document.querySelector('[data-order-items]');
     if (itemsBox) {
       const items = order.details || order.items || [];
+      renderOrderChatStart(items); // RF-287
       if (items.length) {
         itemsBox.innerHTML = items.map(it => {
           const alreadyRated = ratedProductLines.has(Number(it.id));
