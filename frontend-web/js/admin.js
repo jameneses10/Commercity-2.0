@@ -126,9 +126,26 @@ function bindFilters(root=document){
 }
 function filters(key,items,search='Buscar'){return `<section class="cc-card mb-5"><div class="cc-module-filters" data-admin-filter-group="${key}">${items.map((it,i)=>`<button class="cc-filter-pill ${i===0?'active':''}" data-filter="${esc(it[0])}" type="button">${esc(it[1])}</button>`).join('')}</div>${search?`<label class="cc-label mt-4">${esc(search)}<input class="cc-input" data-admin-search="${key}" placeholder="Buscar en datos reales"></label>`:''}</section>`;}
 
+// RF-281: alertas condicionales. Solo se muestran cuando la condicion existe.
+function adminAlertConditions(stats){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)&&parsed>0?Math.trunc(parsed):0; };
+  return [
+    {key:'productos',total:num(stats?.reportes_productos_pendientes),singular:'producto reportado pendiente',plural:'productos reportados pendientes',href:'admin-reportes.html'},
+    {key:'usuarios',total:num(stats?.reportes_usuarios_pendientes),singular:'usuario con queja pendiente',plural:'usuarios con quejas pendientes',href:'admin-reportes.html'},
+    {key:'tiendas',total:num(stats?.tiendas_pausadas),singular:'tienda pausada',plural:'tiendas pausadas',href:'admin-tiendas.html'}
+  ].filter(condition=>condition.total>0);
+}
+function adminAlertsHtml(stats){
+  const active=adminAlertConditions(stats);
+  if(!active.length) return '';
+  const items=active.map(condition=>`<li data-admin-alert="${esc(condition.key)}"><b>${esc(condition.total)}</b> ${esc(condition.total===1?condition.singular:condition.plural)} · <a href="${esc(condition.href)}">Revisar</a></li>`).join('');
+  return `<section class="cc-card cc-soft-warning mb-5" data-admin-alerts role="status" aria-live="polite"><b>Atencion administrativa requerida</b><ul class="mt-2">${items}</ul></section>`;
+}
 async function dashboard(user){
   const [statsRes, usersRes, logsRes, prodReports, userReports, returnsRes, productsRes, catsRes, notifCount]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/users'),safe('/admin/logs'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/products?limit=20'),safe('/categories'),safe('/notifications/unread-count')]);
   const stats=statsRes.data?.stats||{}; const cards=[['Usuarios',stats.total_compradores+stats.total_vendedores+stats.total_administradores||usersRes.data?.users?.length||0,'admin-usuarios.html'],['Tiendas',stats.total_tiendas||0,'admin-tiendas.html'],['Productos',stats.total_productos||productsRes.data?.products?.length||0,'admin-productos.html'],['Pedidos',stats.total_pedidos??0,'admin-pedidos.html'],['Comisiones',money(stats.comisiones_totales||0),'admin-comisiones.html'],['Logs',logsRes.data?.logs?.length||0,'admin-logs.html'],['Reportes',Number(stats.reportes_productos_pendientes||0)+Number(stats.reportes_usuarios_pendientes||0),'admin-reportes.html'],['Notificaciones',notifCount.data?.unread_count||0,'admin-notificaciones.html']];
+  const alertsHtml=adminAlertsHtml(stats);
+  if(alertsHtml) main().insertAdjacentHTML('afterbegin',alertsHtml);
   const section=main().querySelector('section.grid.gap-5')||main();
   [...main().querySelectorAll('.cc-grid.cols-4')].find(g=>g.querySelector(':scope > a.cc-metric-card'))?.remove();
   section.insertAdjacentHTML('afterbegin',`<section class="cc-card cc-api-summary"><h2 class="text-2xl font-bold">Panel real de ${esc(user.nombre||'administrador')}</h2><p class="cc-muted">Estadísticas administrativas conectadas a la API.</p></section><section class="cc-grid cols-4">${cards.map(c=>`<a class="cc-card cc-metric-card" href="${c[2]}"><b>${c[0]}</b><strong>${c[1]}</strong><span>API real</span></a>`).join('')}</section>`);
