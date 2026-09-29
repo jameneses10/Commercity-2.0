@@ -15,6 +15,53 @@ function mapUserStatusTransitionError(error) {
 }
 
 async function dashboardStats() { return model.dashboardStats(); }
+const REPORT_ESTADO_GENERAL=['creado','procesando','enviado','completado','cancelado'];
+const REPORT_COMISION_ESTADO=['pendiente','pagada','revisada','rechazada'];
+const REPORT_PRODUCTO_ESTADO=['activo','agotado','oculto','eliminado'];
+const REPORT_USUARIO_ESTADO=['activo','bloqueado','inactivo','baneado'];
+function normalizeReportDate(value){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw err('fecha debe tener formato YYYY-MM-DD.',400);
+  const [y,m,d]=value.split('-').map(Number);
+  const dt=new Date(Date.UTC(y,m-1,d));
+  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d) throw err('fecha inválida.',400);
+  return value;
+}
+function normalizeReportId(value,name){
+  if(value===undefined) return undefined;
+  const parsed=Number(value);
+  if(!Number.isInteger(parsed)||parsed<1) throw err(`${name} inválido.`,400);
+  return parsed;
+}
+function normalizeReportEnum(value,allowed,name){
+  if(value===undefined) return undefined;
+  if(typeof value!=='string'||!allowed.includes(value)) throw err(`${name} inválido.`,400);
+  return value;
+}
+function normalizeReportFilters(query={}){
+  if(query.estado_pago!==undefined) throw err('estado_pago no es un filtro admitido: los reportes de ventas, comisiones y productos se calculan solo sobre pedidos pagados.',400);
+  if(query.estado!==undefined) throw err('estado no es un filtro admitido: utilice estado_general, comision_estado, producto_estado o usuario_estado.',400);
+  const filters={
+    fecha:normalizeReportDate(query.fecha),
+    tienda_id:normalizeReportId(query.tienda_id,'tienda_id'),
+    vendedor_id:normalizeReportId(query.vendedor_id,'vendedor_id'),
+    producto_id:normalizeReportId(query.producto_id,'producto_id'),
+    categoria_id:normalizeReportId(query.categoria_id,'categoria_id'),
+    estado_general:normalizeReportEnum(query.estado_general,REPORT_ESTADO_GENERAL,'estado_general'),
+    comision_estado:normalizeReportEnum(query.comision_estado,REPORT_COMISION_ESTADO,'comision_estado'),
+    producto_estado:normalizeReportEnum(query.producto_estado,REPORT_PRODUCTO_ESTADO,'producto_estado'),
+    usuario_estado:normalizeReportEnum(query.usuario_estado,REPORT_USUARIO_ESTADO,'usuario_estado'),
+    limit:Math.min(Math.max(parseInt(query.limit||'10',10)||10,1),50)
+  };
+  Object.keys(filters).forEach(key=>{ if(filters[key]===undefined) delete filters[key]; });
+  return filters;
+}
+async function reports(query={}){
+  const filters=normalizeReportFilters(query);
+  const data=await model.filteredReports(filters);
+  return {filtros_aplicados:filters, ...data};
+}
+
 
 function normalizeSearchFilter(value) {
   if (value === undefined) return undefined;
@@ -103,4 +150,4 @@ async function updateUserStatus(admin, id, estado, ip) {
   }
 }
 
-module.exports = { dashboardStats, listUsers, updateUserStatus };
+module.exports = { dashboardStats, reports, normalizeReportFilters, listUsers, updateUserStatus };

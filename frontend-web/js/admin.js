@@ -534,6 +534,94 @@ function mostActiveUsersReportSection(users){
   const rows=list.length?list.map((item,index)=>`<tr><td><b>${index+1}</b></td><td><b>${esc(item?.nombre||'Usuario')}</b><small class="text-xs text-slate-400 block">${esc(item?.correo||'')}</small></td><td><span class="cc-chip blue">${esc(item?.rol||'no disponible')}</span></td><td><span class="cc-chip ${chipClass(item?.estado)}">${esc(item?.estado||'no disponible')}</span></td><td>${esc(num(item?.acciones))}</td><td>${esc(mostActiveUsersShare(item?.acciones,totalActions))}</td><td>${esc(num(item?.acciones_distintas))}</td><td>${dash(item?.ultima_accion)}</td><td>${dash(item?.ultimo_login_at)}</td></tr>`).join(''):'<tr><td colspan="9"><b>Sin actividad registrada.</b><p class="cc-muted">Cuando existan acciones auditadas apareceran aqui los usuarios mas activos.</p></td></tr>';
   return `<section class="cc-card mt-5" data-most-active-users-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Usuarios mas activos</h2><p class="cc-muted">Ranking por volumen de acciones auditadas, incluyendo compradores, vendedores y administradores.</p></div></div><p class="cc-muted mt-3">${esc(list.length)} usuario${list.length===1?'':'s'} en el ranking · ${esc(totalActions)} acciones</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>#</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th><th>Participacion</th><th>Tipos</th><th>Ultima accion</th><th>Ultimo acceso</th></tr></thead><tbody data-most-active-users-rows>${rows}</tbody></table></div></section>`;
 }
+const REPORT_FILTER_SCOPE={
+  fecha:['Ventas totales','Comisiones recaudadas','Productos mas vendidos','Usuarios mas activos'],
+  tienda_id:['Ventas totales','Comisiones recaudadas','Productos mas vendidos'],
+  vendedor_id:['Ventas totales','Comisiones recaudadas','Productos mas vendidos'],
+  producto_id:['Ventas totales','Productos mas vendidos'],
+  categoria_id:['Ventas totales','Productos mas vendidos'],
+  estado_general:['Ventas totales'],
+  comision_estado:['Comisiones recaudadas'],
+  producto_estado:['Productos mas vendidos'],
+  usuario_estado:['Usuarios mas activos']
+};
+function reportFilterScopeHint(key){ const scope=REPORT_FILTER_SCOPE[key]||[]; return scope.length===4?'Aplica a los cuatro reportes':`Aplica solo a: ${scope.join(', ')}`; }
+function reportFiltersSection(){
+  const opt=(list)=>list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  const field=(key,label,control)=>`<label class="cc-label">${esc(label)}${control}<small class="text-xs text-slate-400 block mt-1">${esc(reportFilterScopeHint(key))}</small></label>`;
+  return `<section class="cc-card mt-5" data-report-filters><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Filtros de reportes</h2><p class="cc-muted">La fecha es global. Los demas filtros solo afectan los reportes indicados en cada control.</p></div></div>`+
+  `<div class="cc-form-grid mt-3">`+
+  field('fecha','Fecha (dia)','<input class="cc-input" type="date" data-report-filter="fecha">')+
+  field('tienda_id','Tienda (ID)','<input class="cc-input" type="number" min="1" step="1" data-report-filter="tienda_id" placeholder="Ej. 3">')+
+  field('vendedor_id','Vendedor (ID de usuario)','<input class="cc-input" type="number" min="1" step="1" data-report-filter="vendedor_id" placeholder="Ej. 7">')+
+  field('producto_id','Producto (ID)','<input class="cc-input" type="number" min="1" step="1" data-report-filter="producto_id" placeholder="Ej. 12">')+
+  field('categoria_id','Categoria (ID)','<input class="cc-input" type="number" min="1" step="1" data-report-filter="categoria_id" placeholder="Ej. 2">')+
+  field('estado_general','Estado del pedido',`<select class="cc-input" data-report-filter="estado_general"><option value="">Todos</option>${opt(['creado','procesando','enviado','completado','cancelado'])}</select>`)+
+  field('comision_estado','Estado de liquidacion',`<select class="cc-input" data-report-filter="comision_estado"><option value="">Todos</option>${opt(['pendiente','pagada','revisada','rechazada'])}</select>`)+
+  field('producto_estado','Estado del producto',`<select class="cc-input" data-report-filter="producto_estado"><option value="">Todos</option>${opt(['activo','agotado','oculto','eliminado'])}</select>`)+
+  field('usuario_estado','Estado del usuario',`<select class="cc-input" data-report-filter="usuario_estado"><option value="">Todos</option>${opt(['activo','bloqueado','inactivo','baneado'])}</select>`)+
+  `</div><p class="cc-muted mt-3">Los reportes de ventas, comisiones y productos se calculan siempre sobre pedidos pagados.</p>`+
+  `<div class="cc-card-actions-row mt-3"><button class="cc-btn" type="button" data-report-filters-apply>Aplicar filtros</button><button class="cc-btn outline" type="button" data-report-filters-clear>Limpiar</button></div>`+
+  `<p class="cc-muted mt-3" data-report-filters-status aria-live="polite">Sin filtros aplicados: se muestran los reportes globales.</p>`+
+  `<section class="mt-5" data-report-filters-results></section></section>`;
+}
+function readReportFilters(root){
+  const params=new URLSearchParams();
+  root.querySelectorAll('[data-report-filter]').forEach(input=>{
+    const value=String(input.value??'').trim();
+    if(value) params.set(input.dataset.reportFilter,value);
+  });
+  return params;
+}
+function filteredSalesRows(ventas){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const gross=num(ventas?.ventas_totales), orders=num(ventas?.pedidos_pagados);
+  const average=orders>0?gross/orders:null;
+  return [['Ventas totales',money(gross)],['Pedidos pagados',esc(orders)],['Unidades vendidas',esc(num(ventas?.unidades_vendidas))],['Ticket promedio',average===null?'Sin datos':money(average)]];
+}
+function filteredCommissionRows(comisiones){
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  return [['Comisiones recaudadas',money(num(comisiones?.comisiones_recaudadas))],['Comisiones registradas',esc(num(comisiones?.comisiones_count))],['Base liquidable',money(num(comisiones?.base_liquidable))],['Neto para vendedores',money(num(comisiones?.neto_vendedores))]];
+}
+function filteredReportsResultsHtml(data){
+  const table=(title,rows)=>`<h3 class="text-xl font-bold mt-5">${esc(title)}</h3><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>${rows.map(([l,v])=>`<tr><td><b>${esc(l)}</b></td><td>${v}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<h2 class="text-2xl font-bold">Resultados filtrados</h2>`+
+    table('Ventas totales (filtrado)',filteredSalesRows(data?.ventas))+
+    table('Comisiones recaudadas (filtrado)',filteredCommissionRows(data?.comisiones))+
+    topProductsPlatformReportSection(data?.top_productos_vendidos)+
+    mostActiveUsersReportSection(data?.usuarios_mas_activos);
+}
+async function applyReportFilters(){
+  const root=document.querySelector('[data-report-filters]');
+  if(!root) return;
+  const status=root.querySelector('[data-report-filters-status]');
+  const results=root.querySelector('[data-report-filters-results]');
+  const params=readReportFilters(root);
+  if(status) status.textContent='Aplicando filtros...';
+  try{
+    const query=params.toString();
+    const response=await api.get(`/admin/reports${query?`?${query}`:''}`);
+    const data=response.data||{};
+    if(results) results.innerHTML=filteredReportsResultsHtml(data);
+    const applied=[...params.keys()];
+    if(status) status.textContent=applied.length?`Filtros aplicados: ${applied.join(', ')}. Cada reporte aplica solo los filtros que le corresponden.`:'Sin filtros aplicados: se muestran los reportes globales.';
+  }catch(error){
+    if(results) results.innerHTML='';
+    if(status) status.textContent=`No fue posible aplicar los filtros. ${error?.message||''}`.trim();
+  }
+}
+function bindReportFilters(){
+  const root=document.querySelector('[data-report-filters]');
+  if(!root) return;
+  root.querySelector('[data-report-filters-apply]')?.addEventListener('click',()=>applyReportFilters());
+  root.querySelector('[data-report-filters-clear]')?.addEventListener('click',()=>{
+    root.querySelectorAll('[data-report-filter]').forEach(input=>{ input.value=''; });
+    const results=root.querySelector('[data-report-filters-results]');
+    if(results) results.innerHTML='';
+    const status=root.querySelector('[data-report-filters-status]');
+    if(status) status.textContent='Sin filtros aplicados: se muestran los reportes globales.';
+  });
+}
 async function reportsPage(){
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
   const s=stats.data?.stats||{};
@@ -543,6 +631,7 @@ async function reportsPage(){
   commissionsCollectedReportSection(s)+
   topProductsPlatformReportSection(s.top_productos_vendidos)+
   mostActiveUsersReportSection(s.usuarios_mas_activos)+
+  reportFiltersSection()+
   `<section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Solicitudes de eliminación de cuenta</h2>`+
   `<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>`+
   requests.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.correo)}</td><td>${esc(r.rol)}</td><td><span class="cc-chip ${chipClass(r.solicitud_eliminacion_estado)}">${esc(r.solicitud_eliminacion_estado)}</span></td><td>${esc(r.solicitud_eliminacion_fecha)}</td><td><button class="cc-btn outline" type="button" data-review-delete-request="${esc(r.id)}">Revisar</button></td></tr>`).join('')+
@@ -551,6 +640,7 @@ async function reportsPage(){
   reportTypeSelectorHtml()+
   productReportsSectionHtml(pr.data?.reports||[])+
   userReportsSectionHtml(ur.data?.reports||[]);
+  bindReportFilters();
   bindProductReportsForm();
   bindUserReportsForm();
   bindReportTypeSelector();
