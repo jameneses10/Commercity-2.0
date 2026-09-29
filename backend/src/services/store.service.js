@@ -1,5 +1,6 @@
 const storeModel = require('../models/store.model');
 const { createSlug } = require('../utils/slug');
+const logService = require('./log.service');
 
 function httpError(message, statusCode) {
   const error = new Error(message);
@@ -61,7 +62,10 @@ async function changeStoreStatus({ storeId, user, status }) {
   const isOwner = user.rol === 'vendedor' && store.usuario_id === user.id;
   const isAdmin = user.rol === 'administrador';
   if (!isOwner && !isAdmin) throw httpError('No tiene permisos para modificar esta tienda.', 403);
-  return storeModel.updateStoreById(store.id, { estado: status });
+  const updated = await storeModel.updateStoreById(store.id, { estado: status });
+  // RF-283: el cambio de estado de tienda es una accion critica; se audita el actor.
+  await logService.log(null, { usuario_id: user.id, accion: 'tienda_estado_actualizado', entidad: 'tiendas', entidad_id: store.id, detalle: { rol: user.rol ?? null, estado_anterior: store.estado ?? null, estado_nuevo: status }, ip: null });
+  return updated;
 }
 
 async function listStoreProducts(storeId, query) {
