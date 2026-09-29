@@ -42,7 +42,7 @@ async function processPayment(user,{pedido_id,card_number}){
   await notificationService.create(conn,order.comprador_id,{tipo:'pago_aprobado',titulo:'Pago aprobado',mensaje:`El pago del pedido ${pedido_id} fue aprobado.`});
   const [sellerRows]=await conn.query(`SELECT DISTINCT t.usuario_id vendedor_id FROM pedido_detalles d INNER JOIN tiendas t ON t.id=d.tienda_id WHERE d.pedido_id=?`,[pedido_id]);
   for(const s of sellerRows){ await notificationService.create(conn,s.vendedor_id,{tipo:'nuevo_pedido',titulo:'Nuevo pedido recibido',mensaje:`Tienes un nuevo pedido pagado: ${pedido_id}.`}); }
-  await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',estado_pago:'pagado',estado_general:'procesando',createdShipments}});
+  await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',estado_pago_anterior:order.estado_pago,estado_general_anterior:order.estado_general,estado_pago:'pagado',estado_general:'procesando',createdShipments}});
   const webhook=sandboxWebhookService.executePaymentApprovedWebhook({pedido_id,pago_id:pagoId,estado:'aprobado'});
   await conn.commit(); return {estado:'aprobado',mensaje:'Pago sandbox aprobado.',envios_creados:createdShipments,webhook};
  }catch(e){ await conn.rollback(); try{ await logService.log(null,{usuario_id:user.id,accion:'pago_intento_fallido',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',decision_result:approved?'aprobado':'rechazado',resultado:'fallido',codigo:e.statusCode,motivo:e.message}}); }catch(auditErr){} throw e; } finally{conn.release();}
@@ -63,7 +63,7 @@ async function webhookAdmin(user,{pedido_id,approved}){
   await commissionService.createCommissions(conn,pedido_id,details); await shipmentModel.createMissingForPaidOrder(conn,pedido_id); await notificationService.create(conn,order.comprador_id,{tipo:'pago_aprobado',titulo:'Pago aprobado',mensaje:`El pago del pedido ${pedido_id} fue aprobado.`});
   const [sellerRows]=await conn.query(`SELECT DISTINCT t.usuario_id vendedor_id FROM pedido_detalles d INNER JOIN tiendas t ON t.id=d.tienda_id WHERE d.pedido_id=?`,[pedido_id]);
   for(const s of sellerRows){ await notificationService.create(conn,s.vendedor_id,{tipo:'nuevo_pedido',titulo:'Nuevo pedido recibido',mensaje:`Tienes un nuevo pedido pagado: ${pedido_id}.`}); }
-  await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',estado_pago:'pagado',estado_general:'procesando'}}); await conn.commit(); return {estado:'aprobado'};
+  await logService.log(conn,{usuario_id:user.id,accion:'pago_aprobado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',estado_pago_anterior:order.estado_pago,estado_general_anterior:order.estado_general,estado_pago:'pagado',estado_general:'procesando'}}); await conn.commit(); return {estado:'aprobado'};
  }catch(e){ await conn.rollback(); try{ await logService.log(null,{usuario_id:user.id,accion:'pago_intento_fallido',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',decision_result:approved?'aprobado':'rechazado',resultado:'fallido',codigo:e.statusCode,motivo:e.message}}); }catch(auditErr){} throw e; } finally{conn.release();}
 }
 module.exports={processPayment,webhookAdmin};

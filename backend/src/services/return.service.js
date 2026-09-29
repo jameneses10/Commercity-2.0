@@ -62,11 +62,12 @@ async function sellerUpdate(user, id, payload, meta = {}) {
   if (user.rol !== 'vendedor') throw err('Solo vendedores pueden actualizar devoluciones de su tienda.', 403);
   if (!SELLER_STATES.includes(payload.estado)) throw err('Estado no permitido para vendedor.', 400);
   if (!(await model.sellerOwnsReturn(id, user.id))) throw err('La devolución no pertenece a tu tienda.', 403);
+  const previo = await model.findById(id);
   const conn = await model.pool.getConnection();
   try {
     await conn.beginTransaction();
     await model.updateSeller(id, payload, conn);
-    await logService.log(conn, { usuario_id:user.id, accion:'devolucion_actualizada_vendedor', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
+    await logService.log(conn, { usuario_id:user.id, accion:'devolucion_actualizada_vendedor', entidad:'devolucion', entidad_id:id, detalle:{ estado_anterior:previo?.estado ?? null, ...payload }, ip:meta.ip });
     await conn.commit();
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
   const row = await model.findById(id);
@@ -96,7 +97,7 @@ async function adminResolve(user, id, payload, meta = {}) {
     try {
       await conn.beginTransaction();
       await model.updateAdmin(id, payload, conn);
-      await logService.log(conn, { usuario_id:user.id, accion:'devolucion_resuelta_admin', entidad:'devolucion', entidad_id:id, detalle:payload, ip:meta.ip });
+      await logService.log(conn, { usuario_id:user.id, accion:'devolucion_resuelta_admin', entidad:'devolucion', entidad_id:id, detalle:{ estado_anterior:row.estado, ...payload }, ip:meta.ip });
       await conn.commit();
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
     updated = await model.findById(id);

@@ -21,6 +21,6 @@ async function moderate(admin,id,estado,ip){
  try{ await conn.beginTransaction(); await conn.query('SELECT id FROM productos WHERE id=? FOR UPDATE',[r.producto_id]); await conn.query('SELECT id FROM tiendas WHERE id=? FOR UPDATE',[p.tienda_id]); updated=await reviewModel.updateStatus(id,estado,conn); await reputation.recalcProduct(r.producto_id,conn); await reputation.recalcStore(p.tienda_id,conn); await conn.commit(); }
  catch(e){ await conn.rollback(); throw e; }
  finally{ conn.release(); }
- await logService.log(null,{usuario_id:admin.id,accion:'resena_moderada',entidad:'resenas',entidad_id:id,detalle:{estado},ip}); return updated;
+ await logService.log(null,{usuario_id:admin.id,accion:'resena_moderada',entidad:'resenas',entidad_id:id,detalle:{estado_anterior:r.estado,estado},ip}); return updated;
 }
 module.exports={createReview,listProduct,moderate};
