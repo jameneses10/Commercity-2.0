@@ -482,6 +482,53 @@ async function loadProductReviews(box, id) {
   }
 }
 
+const PRODUCT_REPORT_MOTIVO_MIN=3;
+const PRODUCT_REPORT_MOTIVO_MAX=120;
+const PRODUCT_REPORT_REASONS=['Producto prohibido o ilegal','Informacion enganosa','Imagenes inapropiadas','Precio fraudulento','Producto falsificado','Otro motivo'];
+function productReportSection(productId){
+  const options=PRODUCT_REPORT_REASONS.map(reason=>`<option value="${esc(reason)}">${esc(reason)}</option>`).join('');
+  return `<section class="cc-card mt-5" data-product-report="${esc(productId)}"><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reportar este producto</h2><p class="cc-muted">Indica un motivo especifico si este producto incumple las politicas de publicacion.</p></div></div>`+
+    `<label class="cc-label mt-3">Motivo<select class="cc-input" data-product-report-reason>${options}</select></label>`+
+    `<label class="cc-label mt-3">Detalle (opcional)<textarea class="cc-input" rows="3" data-product-report-description placeholder="Agrega informacion que ayude a revisar el reporte"></textarea></label>`+
+    `<div class="cc-card-actions-row mt-3"><button class="cc-btn" type="button" data-product-report-submit>Enviar reporte</button></div>`+
+    `<p class="cc-muted mt-3" data-product-report-status aria-live="polite"></p></section>`;
+}
+async function submitProductReport(root){
+  const status=root.querySelector('[data-product-report-status]');
+  const button=root.querySelector('[data-product-report-submit]');
+  const setStatus=text=>{ if(status) status.textContent=text; };
+  if(!token()){ setStatus('Inicia sesion para reportar este producto.'); return; }
+  const productId=root.dataset.productReport;
+  const motivo=String(root.querySelector('[data-product-report-reason]')?.value ?? '').trim();
+  const descripcion=String(root.querySelector('[data-product-report-description]')?.value ?? '').trim();
+  if(motivo.length<PRODUCT_REPORT_MOTIVO_MIN || motivo.length>PRODUCT_REPORT_MOTIVO_MAX){
+    setStatus(`El motivo debe tener entre ${PRODUCT_REPORT_MOTIVO_MIN} y ${PRODUCT_REPORT_MOTIVO_MAX} caracteres.`);
+    return;
+  }
+  if(button) button.disabled=true;
+  setStatus('Enviando reporte...');
+  try{
+    const payload=descripcion?{motivo,descripcion}:{motivo};
+    await api.post(`/products/${encodeURIComponent(productId)}/report`,payload);
+    setStatus('Reporte enviado. El equipo administrativo lo revisara.');
+    showToast('Reporte de producto enviado correctamente.');
+    const description=root.querySelector('[data-product-report-description]');
+    if(description) description.value='';
+  }catch(error){
+    const code=Number(error?.status ?? error?.statusCode ?? 0);
+    if(code===409) setStatus('Ya reportaste este producto anteriormente.');
+    else if(code===401 || code===403) setStatus('Inicia sesion como usuario valido para reportar este producto.');
+    else if(code===404) setStatus('El producto ya no esta disponible.');
+    else setStatus(`No fue posible enviar el reporte. ${error?.message || ''}`.trim());
+  }finally{
+    if(button) button.disabled=false;
+  }
+}
+function bindProductReport(){
+  const root=document.querySelector('[data-product-report]');
+  if(!root) return;
+  root.querySelector('[data-product-report-submit]')?.addEventListener('click',()=>submitProductReport(root));
+}
 export async function loadProductDetail() {
   const box = document.querySelector('[data-product-detail]');
   if (!box) return;
@@ -495,11 +542,13 @@ export async function loadProductDetail() {
     const data = await api.get(`/products/${encodeURIComponent(id)}`);
     const p = data.data?.product || data.product || data.producto || data.data || data;
     box.innerHTML = `<div class="cc-grid cols-2"><section class="cc-card"><div class="cc-product-media h-96"><img src="${esc(productImage(p))}" alt="${esc(p.nombre || 'Producto CommerCity')}"></div></section><section class="cc-card"><span class="cc-chip orange">Producto real</span><h1 class="text-4xl font-bold mt-4">${esc(p.nombre || 'Producto CommerCity')}</h1><p class="cc-muted mt-3">${esc(p.descripcion || 'Producto publicado por vendedor verificado.')}</p><p class="cc-price mt-5">${money(productPrice(p))}</p><p class="mt-2">Stock: <b>${esc(p.stock ?? 'Disponible')}</b></p><p class="cc-muted mt-2">Categoría: <b>${esc(productCategoryName(p))}</b></p><p class="cc-muted mt-2">Tienda: <b>${esc(productStoreName(p))}</b></p><div class="grid md:grid-cols-3 gap-3 mt-6"><button class="cc-btn" data-cart="${esc(p.id || id)}"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-orange cc-icon" style="--cc-icon-url:url('/assets/icons/cc-add-shopping-cart.svg')" data-icon-name="cc-add-shopping-cart.svg" data-product-cart-icon aria-hidden="true"></span></span>Añadir al carrito</button><button class="cc-btn outline" data-favorite="${esc(p.id || id)}" type="button"><span class="cc-btn-icon"><span class="cc-ui-icon cc-ui-icon-mask cc-icon-tone-red cc-icon" style="--cc-icon-url:url('/assets/icons/cc-favorites-wishlist.svg')" data-icon-name="cc-favorites-wishlist.svg" data-product-favorite-icon aria-hidden="true"></span></span>Favorito</button><a class="cc-btn secondary" href="chat.html">Consultar vendedor</a></div></section></div><section class="cc-card mt-5" data-product-reviews><h2 class="text-2xl font-bold">Reseñas aprobadas</h2><p class="cc-muted">Cargando reseñas...</p></section>`;
+    box.insertAdjacentHTML('beforeend',productReportSection(id));
     catalogProducts=[p];
     bindProductActions();
     await syncFavoriteButtons();
     await syncProductCartIcons();
     await loadProductReviews(box, id);
+    bindProductReport();
   } catch(error) {
     box.innerHTML = `<section class="cc-card cc-empty-state"><img class="cc-icon-lg" src="assets/icons/cc-product-detail.svg" alt=""><h1 class="text-3xl font-bold">No pudimos cargar este producto.</h1><p class="cc-muted">${esc(error.message)}</p><a class="cc-btn outline" href="productos.html">Volver al catálogo</a></section>`;
   }
