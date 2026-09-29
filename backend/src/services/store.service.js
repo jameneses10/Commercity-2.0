@@ -56,7 +56,7 @@ async function updateMyStore(userId, payload) {
   return storeModel.updateStoreById(store.id, data);
 }
 
-async function changeStoreStatus({ storeId, user, status }) {
+async function changeStoreStatus({ storeId, user, status, ip = null }) {
   const store = await storeModel.findStoreById(storeId);
   if (!store) throw httpError('Tienda no encontrada.', 404);
   const isOwner = user.rol === 'vendedor' && store.usuario_id === user.id;
@@ -64,7 +64,7 @@ async function changeStoreStatus({ storeId, user, status }) {
   if (!isOwner && !isAdmin) throw httpError('No tiene permisos para modificar esta tienda.', 403);
   const updated = await storeModel.updateStoreById(store.id, { estado: status });
   // RF-283: el cambio de estado de tienda es una accion critica; se audita el actor.
-  await logService.log(null, { usuario_id: user.id, accion: 'tienda_estado_actualizado', entidad: 'tiendas', entidad_id: store.id, detalle: { rol: user.rol ?? null, estado_anterior: store.estado ?? null, estado_nuevo: status }, ip: null });
+  await logService.log(null, { usuario_id: user.id, accion: 'tienda_estado_actualizado', entidad: 'tiendas', entidad_id: store.id, detalle: { rol: user.rol ?? null, estado_anterior: store.estado ?? null, estado_nuevo: status }, ip: ip ?? null });
   return updated;
 }
 
