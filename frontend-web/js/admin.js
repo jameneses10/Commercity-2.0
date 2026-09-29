@@ -500,6 +500,23 @@ function commissionsCollectedReportSection(stats){
   const settlement=commissionsSettlementRows(stats).map(([label,value])=>`<tr><td><b>${esc(label)}</b></td><td>${value}</td></tr>`).join('');
   return `<section class="cc-card mt-5" data-commissions-collected-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reporte de comisiones recaudadas</h2><p class="cc-muted">Comisiones retenidas por la plataforma sobre pedidos con pago confirmado.</p></div></div><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Indicador</th><th>Valor</th><th>Detalle</th></tr></thead><tbody data-commissions-collected-rows>${rows}</tbody></table></div><h3 class="text-xl font-bold mt-5">Estado administrativo de liquidacion</h3><p class="cc-muted">Clasificacion administrativa posterior; no altera lo ya recaudado.</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Estado</th><th>Comision</th></tr></thead><tbody data-commissions-settlement-rows>${settlement}</tbody></table></div></section>`;
 }
+function topProductsPlatformRows(products){
+  const list=Array.isArray(products)?products:[];
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const totalUnits=list.reduce((acc,item)=>acc+num(item?.unidades_vendidas),0);
+  return { list, totalUnits, totalRevenue:list.reduce((acc,item)=>acc+num(item?.total_vendido),0) };
+}
+function topProductsPlatformShare(units,totalUnits){
+  const u=Number(units), total=Number(totalUnits);
+  if(!Number.isFinite(u)||!Number.isFinite(total)||total<=0) return '0%';
+  return `${Math.round((u/total)*1000)/10}%`;
+}
+function topProductsPlatformReportSection(products){
+  const { list, totalUnits, totalRevenue } = topProductsPlatformRows(products);
+  const num=value=>{ const parsed=Number(value); return Number.isFinite(parsed)?parsed:0; };
+  const rows=list.length?list.map((item,index)=>`<tr><td><b>${index+1}</b></td><td><b>${esc(item?.nombre||'Producto')}</b><small class="text-xs text-slate-400 block">ID: ${esc(item?.id??'')}</small></td><td>${esc(item?.tienda_nombre||'Tienda no disponible')}</td><td>${esc(num(item?.unidades_vendidas))}</td><td>${esc(topProductsPlatformShare(item?.unidades_vendidas,totalUnits))}</td><td>${money(num(item?.total_vendido))}</td><td>${esc(num(item?.pedidos))}</td></tr>`).join(''):'<tr><td colspan="7"><b>Sin productos vendidos.</b><p class="cc-muted">Cuando existan pedidos pagados apareceran aqui los mas vendidos de la plataforma.</p></td></tr>';
+  return `<section class="cc-card mt-5" data-top-products-platform-report><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Productos mas vendidos de la plataforma</h2><p class="cc-muted">Ranking global por unidades vendidas en pedidos pagados.</p></div></div><p class="cc-muted mt-3">${esc(list.length)} producto${list.length===1?'':'s'} en el ranking · ${esc(totalUnits)} unidades · ${money(totalRevenue)}</p><div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>#</th><th>Producto</th><th>Tienda</th><th>Unidades</th><th>Participacion</th><th>Total vendido</th><th>Pedidos</th></tr></thead><tbody data-top-products-platform-rows>${rows}</tbody></table></div></section>`;
+}
 async function reportsPage(){
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
   const s=stats.data?.stats||{};
@@ -507,6 +524,7 @@ async function reportsPage(){
   main().innerHTML=shell('Reportes','cc-reports-analytics.svg','Reportes','Resumen real construido con endpoints administrativos.')+`<section class="cc-grid cols-4"><article class="cc-card cc-metric-card"><b>Usuarios activos</b><strong>${esc(s.total_usuarios_activos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Productos</b><strong>${esc(s.total_productos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Pedidos</b><strong>${esc(s.total_pedidos||0)}</strong><span>dashboard-stats</span></article><article class="cc-card cc-metric-card"><b>Ventas</b><strong>${money(s.ventas_totales||0)}</strong><span>pagadas</span></article></section>`+
   salesTotalsReportSection(s)+
   commissionsCollectedReportSection(s)+
+  topProductsPlatformReportSection(s.top_productos_vendidos)+
   `<section class="cc-card mt-5"><h2 class="text-2xl font-bold mb-4">Solicitudes de eliminación de cuenta</h2>`+
   `<div class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>`+
   requests.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.correo)}</td><td>${esc(r.rol)}</td><td><span class="cc-chip ${chipClass(r.solicitud_eliminacion_estado)}">${esc(r.solicitud_eliminacion_estado)}</span></td><td>${esc(r.solicitud_eliminacion_fecha)}</td><td><button class="cc-btn outline" type="button" data-review-delete-request="${esc(r.id)}">Revisar</button></td></tr>`).join('')+
