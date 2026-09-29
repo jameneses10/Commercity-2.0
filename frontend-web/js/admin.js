@@ -645,7 +645,93 @@ async function exportAdminReports(){
     if(status) status.textContent=`No fue posible exportar los reportes. ${error?.message||''}`.trim();
   }
 }
+const CONTENT_REPORT_TYPES=[
+  {key:'stores',label:'Tiendas',target:'Tienda',actions:[['','Sin accion'],['pausada','Pausar tienda'],['suspendida','Suspender tienda'],['activa','Activar tienda']]},
+  {key:'reviews',label:'Resenas',target:'Resena',actions:[['','Sin accion'],['ocultada','Ocultar resena'],['rechazada','Rechazar resena'],['aprobada','Aprobar resena']]},
+  {key:'messages',label:'Mensajes',target:'Mensaje',actions:[['','Sin accion'],['eliminar','Eliminar mensaje']]}
+];
+const CONTENT_REPORT_STATES=['pendiente','revisado','rechazado','accionado'];
+function contentReportRowHtml(type,report){
+  const stateOptions=CONTENT_REPORT_STATES.map(st=>`<option value="${esc(st)}"${st===report.estado?' selected':''}>${esc(st)}</option>`).join('');
+  const actionOptions=type.actions.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('');
+  return `<tr data-content-report="${esc(report.id)}" data-content-report-type="${esc(type.key)}">`
+    +`<td><b>${esc(type.target)} #${esc(report.target_id ?? '')}</b><small class="text-xs text-slate-400 block">${esc(String(report.target_label ?? '').slice(0,60))}</small></td>`
+    +`<td>${esc(report.reportante_nombre || 'Usuario')}<small class="text-xs text-slate-400 block">${esc(report.reportante_correo || '')}</small></td>`
+    +`<td>${report.motivo?esc(report.motivo):'<span class="cc-muted">Sin motivo</span>'}</td>`
+    +`<td>${report.descripcion?esc(report.descripcion):'<span class="cc-muted">Sin detalle</span>'}</td>`
+    +`<td><span class="cc-chip ${chipClass(report.estado)}">${esc(report.estado)}</span></td>`
+    +`<td>${esc(report.created_at ?? '')}</td>`
+    +`<td>${report.respuesta_admin?esc(report.respuesta_admin):'<span class="cc-muted">Sin respuesta</span>'}</td>`
+    +`<td><select class="cc-input" data-content-report-state>${stateOptions}</select>`
+    +`<select class="cc-input mt-2" data-content-report-action>${actionOptions}</select>`
+    +`<textarea class="cc-input mt-2" rows="2" data-content-report-reply placeholder="Respuesta administrativa"></textarea>`
+    +`<button class="cc-btn mt-2" type="button" data-content-report-save>Resolver</button></td></tr>`;
+}
+function contentReportsSectionHtml(type,reports){
+  const list=Array.isArray(reports)?reports:[];
+  const rows=list.length?list.map(r=>contentReportRowHtml(type,r)).join(''):`<tr><td colspan="8"><b>Sin reportes de ${esc(type.label.toLowerCase())}.</b></td></tr>`;
+  return `<section class="cc-card mt-5" data-content-reports="${esc(type.key)}"><div class="cc-section-title"><div><h2 class="text-2xl font-bold">Reportes de ${esc(type.label)}</h2><p class="cc-muted">Revisa y resuelve los reportes recibidos.</p></div></div>`
+    +`<div class="cc-module-filters mt-3">${['','pendiente','revisado','rechazado','accionado'].map(st=>`<button class="cc-filter-pill${st===''?' active':''}" type="button" data-content-report-filter="${esc(st)}">${esc(st||'Todos')}</button>`).join('')}</div>`
+    +`<p class="cc-muted mt-3" data-content-report-status aria-live="polite"></p>`
+    +`<div class="cc-table-wrap mt-3"><table class="cc-table"><thead><tr><th>Target</th><th>Reportante</th><th>Motivo</th><th>Descripcion</th><th>Estado</th><th>Fecha</th><th>Respuesta</th><th>Resolver</th></tr></thead><tbody data-content-report-rows>${rows}</tbody></table></div></section>`;
+}
+async function loadContentReports(typeKey,estado){
+  const type=CONTENT_REPORT_TYPES.find(t=>t.key===typeKey);
+  const root=document.querySelector(`[data-content-reports="${typeKey}"]`);
+  if(!type||!root) return;
+  const body=root.querySelector('[data-content-report-rows]');
+  const status=root.querySelector('[data-content-report-status]');
+  try{
+    const params=new URLSearchParams();
+    if(estado) params.set('estado',estado);
+    const query=params.toString();
+    const res=await api.get(`/admin/reports/${typeKey}${query?`?${query}`:''}`);
+    const reports=res.data?.reports||[];
+    if(body) body.innerHTML=reports.length?reports.map(r=>contentReportRowHtml(type,r)).join(''):`<tr><td colspan="8"><b>Sin reportes.</b></td></tr>`;
+    if(status) status.textContent=`${reports.length} reporte${reports.length===1?'':'s'}${estado?` en estado ${estado}`:''}.`;
+  }catch(error){
+    if(status) status.textContent=`No fue posible cargar los reportes. ${error?.message||''}`.trim();
+  }
+}
+async function resolveContentReport(row){
+  const typeKey=row.dataset.contentReportType;
+  const id=row.dataset.contentReport;
+  const root=document.querySelector(`[data-content-reports="${typeKey}"]`);
+  const status=root?.querySelector('[data-content-report-status]');
+  const button=row.querySelector('[data-content-report-save]');
+  const payload={estado:row.querySelector('[data-content-report-state]')?.value};
+  const reply=String(row.querySelector('[data-content-report-reply]')?.value ?? '').trim();
+  if(reply) payload.respuesta_admin=reply;
+  const accion=String(row.querySelector('[data-content-report-action]')?.value ?? '').trim();
+  if(accion) payload.accion_target=accion;
+  if(button) button.disabled=true;
+  if(status) status.textContent='Resolviendo reporte...';
+  try{
+    await api.patch(`/admin/reports/${typeKey}/${encodeURIComponent(id)}`,payload);
+    if(status) status.textContent='Reporte actualizado correctamente.';
+    await loadContentReports(typeKey,'');
+  }catch(error){
+    if(button) button.disabled=false;
+    if(status) status.textContent=`No fue posible resolver el reporte. ${error?.message||''}`.trim();
+  }
+}
+function bindContentReports(){
+  document.querySelectorAll('[data-content-reports]').forEach(root=>{
+    root.addEventListener('click',event=>{
+      const filter=event.target.closest('[data-content-report-filter]');
+      if(filter){
+        root.querySelectorAll('[data-content-report-filter]').forEach(b=>b.classList.remove('active'));
+        filter.classList.add('active');
+        loadContentReports(root.dataset.contentReports,filter.dataset.contentReportFilter);
+        return;
+      }
+      const save=event.target.closest('[data-content-report-save]');
+      if(save) resolveContentReport(save.closest('[data-content-report]'));
+    });
+  });
+}
 async function reportsPage(){
+  const [sr,rr,mr]=await Promise.all([safe('/admin/reports/stores'),safe('/admin/reports/reviews'),safe('/admin/reports/messages')]);
   const [stats,pr,ur,ret,del,logs]=await Promise.all([safe('/admin/dashboard-stats'),safe('/admin/reports/products'),safe('/admin/reports/users'),safe('/admin/returns'),safe('/admin/account-delete-requests'),safe('/admin/logs')]);
   const s=stats.data?.stats||{};
   const requests = del.data?.requests||[];
@@ -662,7 +748,11 @@ async function reportsPage(){
   `<section id="deleteRequestDetailPanel" class="mt-5"></section>`+
   reportTypeSelectorHtml()+
   productReportsSectionHtml(pr.data?.reports||[])+
-  userReportsSectionHtml(ur.data?.reports||[]);
+  userReportsSectionHtml(ur.data?.reports||[])+
+  contentReportsSectionHtml(CONTENT_REPORT_TYPES[0],sr.data?.reports||[])+
+  contentReportsSectionHtml(CONTENT_REPORT_TYPES[1],rr.data?.reports||[])+
+  contentReportsSectionHtml(CONTENT_REPORT_TYPES[2],mr.data?.reports||[]);
+  bindContentReports();
   bindReportFilters();
   bindProductReportsForm();
   bindUserReportsForm();
