@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { escapeHtml, money } from './ui.js';
 import { UPLOADS_BASE_URL } from './config.js';
+import { userReportSection, bindUserReports } from './user-report.js';
 
 const LEVEL_LABELS = { platino: 'Platino', oro: 'Oro', regular: 'Regular' };
 
@@ -98,6 +99,13 @@ async function loadStoreProfile() {
 
   renderReputation(root, reputationResult);
   renderProducts(root, productsResult);
+
+  const reportHost = root.querySelector('[data-store-content]') || root;
+  const sellerReport = userReportSection(store.usuario_id, { titulo: 'Reportar a este vendedor', descripcion: 'Indica un motivo especifico si este vendedor incumple las politicas.' });
+  if (sellerReport) {
+    reportHost.insertAdjacentHTML('beforeend', sellerReport);
+    bindUserReports(reportHost);
+  }
 }
 
 function renderReputation(root, result) {
