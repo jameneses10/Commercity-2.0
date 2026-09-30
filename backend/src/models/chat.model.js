@@ -12,9 +12,15 @@ async function createConversation(data,conn=pool){ const [r]=await conn.query('I
 async function listForUser(userId){ const [rows]=await pool.query(`SELECT c.*, uc.nombre comprador_nombre, uv.nombre vendedor_nombre, ${PRESENCE_EXPR('uc')} comprador_en_linea, ${PRESENCE_EXPR('uv')} vendedor_en_linea, t.nombre tienda_nombre, p.nombre producto_nombre, (SELECT COALESCE(m.contenido,'[archivo]') FROM mensajes m WHERE m.conversacion_id=c.id AND m.eliminado=FALSE ORDER BY m.creado_en DESC LIMIT 1) ultimo_mensaje, 0 no_leidos FROM conversaciones c INNER JOIN usuarios uc ON uc.id=c.comprador_id INNER JOIN usuarios uv ON uv.id=c.vendedor_id LEFT JOIN tiendas t ON t.id=c.tienda_id LEFT JOIN productos p ON p.id=c.producto_id WHERE c.comprador_id=? OR c.vendedor_id=? ORDER BY COALESCE(c.ultimo_mensaje_at,c.updated_at,c.created_at) DESC`,[PRESENCE_WINDOW_MINUTES,PRESENCE_WINDOW_MINUTES,userId,userId]); return rows; }
 // RF-291: una sola definicion del shape renderizable de un mensaje, compartida
 // por la lista y por la consulta exacta, para que no puedan divergir.
+/* RF-293 CORRECCION: un mensaje eliminado no publica contenido NI referencias a
+   sus adjuntos en las superficies normales del chat. La fila de mensajes, la de
+   mensaje_archivos y el archivo fisico se conservan como evidencia interna de
+   moderacion; lo que desaparece es la referencia consultable. Una sola regla,
+   compartida por la lista y por la consulta exacta. */
+function isDeletedMessage(row){ return row?.eliminado===true || Number(row?.eliminado)===1; }
 const MESSAGE_SELECT=`SELECT m.id,m.conversacion_id,m.emisor_id,CASE WHEN m.eliminado THEN NULL ELSE m.contenido END mensaje,CASE WHEN m.eliminado THEN NULL ELSE m.contenido END contenido,m.tipo,m.eliminado,m.reportado,m.creado_en AS created_at,m.creado_en,ue.nombre emisor_nombre FROM mensajes m INNER JOIN usuarios ue ON ue.id=m.emisor_id`;
 async function filesForMessageIds(ids){ if(!ids.length) return new Map(); const [files]=await pool.query('SELECT id,mensaje_id,url_archivo,nombre_original,mime_type,size_bytes,creado_en FROM mensaje_archivos WHERE mensaje_id IN (?) ORDER BY id ASC',[ids]); const map=new Map(ids.map(id=>[Number(id),[]])); files.forEach(f=>map.get(Number(f.mensaje_id))?.push(f)); return map; }
-async function messages(conversacion_id,{limit=50,offset=0}){ const [rows]=await pool.query(`${MESSAGE_SELECT} WHERE m.conversacion_id=? ORDER BY m.creado_en ASC LIMIT ? OFFSET ?`,[conversacion_id,limit,offset]); const map=await filesForMessageIds(rows.map(r=>r.id)); return rows.map(r=>({...r,archivos:map.get(Number(r.id))||[]})); }
+async function messages(conversacion_id,{limit=50,offset=0}){ const [rows]=await pool.query(`${MESSAGE_SELECT} WHERE m.conversacion_id=? ORDER BY m.creado_en ASC LIMIT ? OFFSET ?`,[conversacion_id,limit,offset]); const map=await filesForMessageIds(rows.filter(r=>!isDeletedMessage(r)).map(r=>r.id)); return rows.map(r=>({...r,archivos:isDeletedMessage(r)?[]:(map.get(Number(r.id))||[])})); }
 /* RF-291 CORRECCION: recupera UN mensaje por su id con el mismo shape
    renderizable que devuelve messages(), incluidos sus archivos. Antes el
    servicio paginaba los 100 primeros por creado_en ASC para localizar el que
@@ -23,6 +29,7 @@ async function messages(conversacion_id,{limit=50,offset=0}){ const [rows]=await
 async function findRenderableMessage(id){
  const [[row]]=await pool.query(`${MESSAGE_SELECT} WHERE m.id=? LIMIT 1`,[id]);
  if(!row) return null;
+ if(isDeletedMessage(row)) return {...row, archivos:[]};
  const map=await filesForMessageIds([row.id]);
  return {...row, archivos:map.get(Number(row.id))||[]};
 }
