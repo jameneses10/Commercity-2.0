@@ -75,6 +75,11 @@ function buyerProfileMenu(){
 export function applyTheme(){
   const mode=localStorage.getItem('cc_theme') || 'day';
   document.body.classList.toggle('cc-night', mode==='night');
+  // RF-297: cc-night gobierna las variables CSS publicadas; .dark en el elemento
+  // raiz es lo que hace que las utilities dark:* de Tailwind sigan el mismo
+  // toggle en lugar de depender de prefers-color-scheme. Ambos se mantienen
+  // sincronizados siempre desde aqui.
+  document.documentElement.classList.toggle('dark', mode==='night');
   document.querySelectorAll('[data-theme-toggle] .cc-header-icon').forEach(icon=>{
     icon.style.setProperty('--cc-icon-url', `url('/assets/icons/${mode==='night' ? 'cc-light-mode.svg' : 'cc-dark-mode.svg'}')`);
   });
