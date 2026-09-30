@@ -43,7 +43,7 @@ async function settings(userId) {
 async function updateSettings(userId, data, meta = {}) {
   const conn = await pool.getConnection();
   try { await conn.beginTransaction();
-    await conn.query(`UPDATE usuarios SET nombre=COALESCE(?,nombre), telefono=?, modo_oscuro=COALESCE(?,modo_oscuro), preferencias_notificaciones=COALESCE(?, preferencias_notificaciones) WHERE id=?`, [data.nombre || null, data.telefono ?? null, data.modo_oscuro === undefined ? null : Boolean(data.modo_oscuro), data.preferencias_notificaciones === undefined ? null : JSON.stringify(data.preferencias_notificaciones), userId]);
+    await conn.query(`UPDATE usuarios SET nombre=COALESCE(?,nombre), telefono=COALESCE(?,telefono), modo_oscuro=COALESCE(?,modo_oscuro), preferencias_notificaciones=COALESCE(?, preferencias_notificaciones) WHERE id=?`, [data.nombre || null, data.telefono ?? null, data.modo_oscuro === undefined ? null : Boolean(data.modo_oscuro), data.preferencias_notificaciones === undefined ? null : JSON.stringify(data.preferencias_notificaciones), userId]);
     await logService.log(conn, { usuario_id:userId, accion:'configuracion_cuenta_actualizada', entidad:'usuario', entidad_id:userId, detalle:{ modo_oscuro:data.modo_oscuro, preferencias:data.preferencias_notificaciones !== undefined }, ip:meta.ip });
     await conn.commit(); return settings(userId);
   } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }

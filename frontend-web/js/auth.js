@@ -1,5 +1,5 @@
 import { api, saveSession, clearSession, currentUser, updateStoredUser, token } from './api.js';
-import { showMessage } from './ui.js';
+import { showMessage, syncThemeFromUser } from './ui.js';
 
 function targetByRole(role){
   if(role==='administrador') return 'admin.html';
@@ -18,6 +18,8 @@ export async function refreshSession(){
   if(!token()) return null;
   const data=await api.get('/auth/me');
   const user=data?.data?.user || data?.user || null;
+  // Misma semantica que en el login: el valor del backend manda.
+  syncThemeFromUser(user);
   return updateStoredUser(user);
 }
 
@@ -32,6 +34,10 @@ export function initLogin(){
     try{
       const data=await api.post('/auth/login', { correo: body.correo, password: body.password });
       const session=saveSession(data);
+      // RF-298: convertir la preferencia persistida en cc_theme antes de redirigir,
+      // para que la pagina destino ejecute mountShell()/applyTheme() ya con el
+      // estado correcto y no aparezca el tema de la cuenta anterior.
+      syncThemeFromUser(session.user);
       showMessage('#formMsg','Ingreso correcto. Redirigiendo...',true);
       setTimeout(()=>{ location.href=targetByRole(session.user?.rol); },500);
     }catch(err){

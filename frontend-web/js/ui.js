@@ -1,4 +1,4 @@
-import { api, token, currentUser, clearSession } from './api.js';
+import { api, token, currentUser, clearSession, updateStoredUser } from './api.js';
 import { UPLOADS_BASE_URL } from './config.js';
 
 export function escapeHtml(value) {
@@ -84,7 +84,44 @@ export function applyTheme(){
     icon.style.setProperty('--cc-icon-url', `url('/assets/icons/${mode==='night' ? 'cc-light-mode.svg' : 'cc-dark-mode.svg'}')`);
   });
 }
-export function toggleTheme(){ const next=document.body.classList.contains('cc-night')?'day':'night'; localStorage.setItem('cc_theme',next); applyTheme(); }
+function themeMode(){ return localStorage.getItem('cc_theme')==='night' ? 'night' : 'day'; }
+function setThemeMode(mode){ localStorage.setItem('cc_theme', mode); applyTheme(); }
+// RF-298: para el usuario autenticado la verdad persistente es usuarios.modo_oscuro;
+// cc_theme es solo la representacion local. Al iniciar sesion la preferencia que
+// llega del backend gana sobre cualquier cc_theme que hubiera dejado otra cuenta
+// en este navegador, de modo que la preferencia no se filtra entre cuentas.
+export function syncThemeFromUser(user){
+  if(!user || typeof user.modo_oscuro==='undefined') return null;
+  const mode=user.modo_oscuro===true ? 'night' : 'day';
+  localStorage.setItem('cc_theme', mode);
+  if(document.body) applyTheme();
+  return mode;
+}
+// Serializa el toggle autenticado: mientras un PATCH esta en vuelo se ignoran
+// los clicks siguientes, para que dos clicks rapidos no puedan dejar la UI en
+// day y la base en night por respuestas HTTP fuera de orden.
+let themePersistPending=false;
+export async function toggleTheme(){
+  if(themePersistPending) return;
+  const previous=themeMode();
+  const next=previous==='night' ? 'day' : 'night';
+  setThemeMode(next);
+  const user=currentUser();
+  // El usuario anonimo se queda en localStorage: RF-298 habla del autenticado.
+  if(!token() || !user) return;
+  themePersistPending=true;
+  try{
+    await api.patch('/account/settings', { modo_oscuro: next==='night' });
+    // cc_user solo se toca cuando la persistencia ya triunfo, asi que un fallo
+    // conserva intacto su valor anterior sin necesidad de restaurarlo.
+    updateStoredUser({ ...user, modo_oscuro: next==='night' });
+  }catch(e){
+    // Nunca dejar UI night con base false: se revierte el tema visible completo.
+    setThemeMode(previous);
+  }finally{
+    themePersistPending=false;
+  }
+}
 export function header(active='home'){
   const user=currentUser(); const account=accountHref(user);
   const sessionActions = user
