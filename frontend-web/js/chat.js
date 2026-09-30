@@ -1,4 +1,4 @@
-import { api, token } from './api.js';
+import { api, token, currentUser } from './api.js';
 import { UPLOADS_BASE_URL } from './config.js'; // RF-291
 const form=document.querySelector('[data-chat-form]');
 const input=document.querySelector('[data-chat-input]');
@@ -148,6 +148,10 @@ function conversationButtonHtml(conversation){
   const last=chatEsc(conversation?.ultimo_mensaje || 'Sin mensajes');
   return `<button class="cc-conversation w-full p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left flex items-center gap-3 transition-all" type="button" data-chat-contact="${label}" data-chat-conversation="${chatEsc(conversation?.id)}"><img class="cc-avatar w-10 h-10 rounded-full bg-orange-100 p-2" src="assets/icons/cc-chat-messages.svg" alt=""><div class="flex-1 overflow-hidden"><b class="text-sm font-bold text-slate-900 dark:text-white block truncate Poppins">${label}</b><small class="text-xs text-slate-400 block truncate">${last}</small>${presenceBadgeHtml(conversation?.contraparte_en_linea===true)}</div></button>`;
 }
+function isOwnMessage(message){
+ const me=currentUser();
+ return Boolean(me && message && String(me.id)===String(message.emisor_id));
+}
 function messageRowHtml(message){
   const id=message?.id;
   const body=message?.eliminado?'<i>Mensaje eliminado</i>':chatEsc(message?.mensaje ?? message?.contenido ?? '[archivo]');
@@ -156,7 +160,14 @@ function messageRowHtml(message){
   const action=message?.eliminado?'':(reported
     ? `<span class="cc-chip orange" data-chat-reported="${chatEsc(id)}">Reportado</span>`
     : `<button class="cc-btn outline text-xs" type="button" data-chat-report="${chatEsc(id)}">Reportar mensaje</button>`);
-  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 block">${author}</b><p>${body}</p>${message?.eliminado?'':attachmentsHtml(message?.archivos)}<time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}</div></article></div>`;
+  /* RF-293: eliminar solo se ofrece sobre los mensajes propios, porque el
+     servidor responde 403 a quien no es el emisor. Ocultarlo es cortesia, no
+     seguridad: la autorizacion sigue siendo del servidor. */
+  const mine=isOwnMessage(message);
+  const deleteAction=(!message?.eliminado && mine)
+    ? `<button class="cc-btn secondary text-xs" type="button" data-chat-delete="${chatEsc(id)}">Eliminar mensaje</button>`
+    : '';
+  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 block">${author}</b><p>${body}</p>${message?.eliminado?'':attachmentsHtml(message?.archivos)}<time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}${deleteAction}</div></article></div>`;
 }
 async function loadChatMessages(conversationId){
   if(!messages) return;
@@ -206,6 +217,40 @@ async function reportChatMessage(button){
     return false;
   }
 }
+/* RF-293: eliminar un mensaje inapropiado. DELETE /chat/messages/:id ya estaba
+   publicado pero no existia ningun control en la interfaz. El borrado es suave
+   en el servidor (eliminado=TRUE, contenido=NULL): la fila del historial se
+   conserva, por eso la fila se actualiza en el sitio en lugar de quitarla. */
+async function deleteChatMessage(button){
+ const id=button?.dataset?.chatDelete;
+ // Mismo criterio que el reporte: solo un id devuelto por el endpoint real.
+ if(!id || !realMessageIds.has(String(id))){ setChatState('Solo puedes eliminar mensajes cargados desde el servidor.'); return false; }
+ if(!window.confirm('Se eliminara el contenido de este mensaje y no se puede deshacer. Continuar?')) return false;
+ button.disabled=true;
+ setChatState('Eliminando el mensaje...');
+ try{
+  await api.delete(`/chat/messages/${encodeURIComponent(id)}`);
+  const row=messages?.querySelector(`[data-chat-message="${CSS.escape(String(id))}"]`);
+  if(row){
+   // No se repinta desde la respuesta: deleteMessage devuelve la fila cruda, sin
+   // emisor_nombre ni archivos, y repintarla perderia el autor.
+   const body=row.querySelector('p');
+   if(body) body.innerHTML='<i>Mensaje eliminado</i>';
+   row.querySelector('.cc-chat-attachments')?.remove();
+   row.querySelector('.cc-card-actions-row')?.remove();
+  }
+  setChatState('Mensaje eliminado.');
+  return true;
+ }catch(error){
+  button.disabled=false;
+  const code=Number(error?.status ?? error?.statusCode ?? 0);
+  if(code===403) setChatState('Solo el emisor puede eliminar este mensaje.');
+  else if(code===404) setChatState('Mensaje no encontrado o no participas en esta conversacion.');
+  else if(code===401) location.href='login.html';
+  else setChatState(`No fue posible eliminar el mensaje. ${error?.message || ''}`.trim());
+  return false;
+ }
+}
 async function loadChatConversations(){
   if(!conversationList) return;
   if(!token()){ setChatState('Inicia sesion para ver tus conversaciones.'); return; }
@@ -235,8 +280,10 @@ conversationList?.addEventListener('click',event=>{
   loadChatMessages(button.dataset.chatConversation);
 });
 messages?.addEventListener('click',event=>{
-  const button=event.target.closest('[data-chat-report]');
-  if(button) reportChatMessage(button);
+  const reportBtn=event.target.closest('[data-chat-report]');
+  if(reportBtn){ reportChatMessage(reportBtn); return; }
+  const deleteBtn=event.target.closest('[data-chat-delete]'); // RF-293
+  if(deleteBtn) deleteChatMessage(deleteBtn);
 });
 /* RF-288: refresco periodico del estado de conexion. No hay transporte en
    tiempo real en el proyecto, asi que se reconsulta la lista y se actualizan
