@@ -44,6 +44,26 @@ function mapFile(file, folder) {
     path: file.path,
   };
 }
+// RF-291: limpieza best-effort de los archivos que Multer YA escribio cuando la
+// peticion falla despues del almacenamiento (conversacion inexistente, usuario no
+// participante, validacion posterior o transaccion fallida). Se usan unicamente
+// las rutas generadas por Multer, nunca un nombre suministrado por el cliente, y
+// un fallo al borrar se ignora para no ocultar el error original.
+function cleanupFiles(files) {
+  const list = Array.isArray(files) ? files : (files ? [files] : []);
+  let removed = 0;
+  for (const file of list) {
+    const target = file && typeof file.path === 'string' ? file.path : null;
+    if (!target) continue;
+    if (path.relative(UPLOAD_ROOT, target).startsWith('..')) continue;
+    try { fs.unlinkSync(target); removed += 1; }
+    catch (unlinkError) {
+      if (unlinkError.code !== 'ENOENT') console.warn('No fue posible eliminar un archivo huerfano.', unlinkError.message);
+    }
+  }
+  return removed;
+}
+
 function multerErrorHandler(err, _req, res, next) {
   if (!err) return next();
   const message = err.code === 'LIMIT_FILE_SIZE' ? 'El archivo supera el tamaño máximo permitido.' : err.message;
@@ -54,4 +74,4 @@ const productUpload = multer({ storage: makeStorage('products'), fileFilter: fil
 const profileUpload = multer({ storage: makeStorage('profiles'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 3 * 1024 * 1024 } });
 const chatUpload = multer({ storage: makeStorage('chat'), fileFilter: fileFilter({ allowedExt: CHAT_EXTENSIONS, allowedMime: CHAT_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
 const returnUpload = multer({ storage: makeStorage('returns'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
-module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile };
+module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile , cleanupFiles };
