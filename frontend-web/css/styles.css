@@ -2468,3 +2468,82 @@ body.cc-night .cc-message.mine {
   border-color: var(--cc-secondary);
   color: var(--cc-ink);
 }
+/* ── RF-301 fase 2: paleta nocturna que alcanza WCAG AA ── */
+/* Todo lo de aqui esta limitado a body.cc-night: el modo claro no cambia.
+   La regla que gana el fondo del boton primario es una cadena de ocho :not()
+   (especificidad 0,9,0), asi que estos overrides repiten esa cadena para poder
+   ganarla de forma determinista en lugar de depender del orden del fichero.
+   Se conserva la familia cromatica de marca; --cc-primary (#fa8000) sigue
+   intacto y se mantiene como acento (borde superior del pie, iconos, focus),
+   donde contrasta 6.9:1 sobre los paneles oscuros. Lo que cambia es el relleno
+   de los controles que llevan texto blanco encima. */
+
+/* Primario: blanco sobre #f97316 daba 2.80:1. #c2410c -> 5.18:1 */
+body.cc-night .cc-btn:not(.outline):not(.secondary):not(.dark):not(.danger):not(.tertiary):not(.success):not(.info):not(.warn):not(.warning),
+body.cc-night .cc-btn-primary {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #ffffff;
+}
+/* Hover y focus-visible del primario: #c96500 daba 3.93:1. #9a3412 -> 7.31:1 */
+body.cc-night .cc-btn:not(.outline):not(.secondary):not(.dark):not(.danger):not(.tertiary):not(.success):not(.info):not(.warn):not(.warning):hover,
+body.cc-night .cc-btn:not(.outline):not(.secondary):not(.dark):not(.danger):not(.tertiary):not(.success):not(.info):not(.warn):not(.warning):focus-visible {
+  background: #9a3412;
+  border-color: #9a3412;
+  color: #ffffff;
+}
+/* Variante warning: la cadena anterior excluye .warn pero NO .warning, asi que
+   estos botones heredaban el naranja del primario (3.19:1). #b45309 -> 5.02:1 */
+body.cc-night .cc-btn.warning:not(.outline):not(.secondary):not(.dark):not(.danger):not(.tertiary):not(.success):not(.info):not(.warn),
+body.cc-night .cc-btn-warning {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+}
+/* Secondary: blanco sobre #2276ff daba 4.11:1. #1d4ed8 -> 6.70:1 */
+body.cc-night .cc-btn.secondary,
+body.cc-night .cc-btn-secondary,
+body.cc-night .cc-product-view {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+/* Success: blanco sobre #16a34a daba 3.30:1. #15803d es el token --cc-ok ya
+   publicado y da 5.02:1 */
+body.cc-night .cc-btn.success,
+body.cc-night .cc-btn-success {
+  background: #15803d;
+  border-color: #15803d;
+  color: #ffffff;
+}
+/* Pildora de filtro activa: blanco sobre #fa8000 daba 2.58:1 */
+body.cc-night .cc-filter-pill.active {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #ffffff;
+}
+/* Enlaces y estado activo de navegacion: #2276ff como TEXTO sobre panel oscuro
+   daba 4.31:1, por debajo de AA para texto normal. #60a5fa -> 6.98:1 */
+body.cc-night .cc-side-link.active,
+body.cc-night .cc-text-link {
+  color: #60a5fa;
+}
+/* Bordes de hover en outline y tertiary. Se corrigen porque el relleno de estos
+   botones apenas se distingue de su entorno en modo oscuro (#172033 sobre
+   #0f172a = 1.10:1, y #102a6b sobre #111827 = 1.32:1), de modo que el borde es
+   lo unico que identifica el control y si le aplica el minimo de 3:1 de la
+   pauta 1.4.11. #165bd8 daba 2.99:1 y #1e3a8a 1.72:1; #60a5fa -> 7.02:1 */
+body.cc-night .cc-btn.outline:hover,
+body.cc-night .cc-btn.tertiary:hover {
+  border-color: #60a5fa;
+}
+/* Pie: el blanco al 40% y al 45% daba 3.72:1 y 4.46:1 sobre #020617. Al 60%
+   da 7.31:1. Se sube solo en modo oscuro; el separador decorativo no se toca
+   porque no transmite informacion (ver informe). */
+body.cc-night .cc-footer-copy,
+body.cc-night .cc-footer-legal a {
+  color: rgba(255,255,255,.6);
+}
+body.cc-night .cc-footer-heading {
+  color: rgba(255,255,255,.6);
+}
