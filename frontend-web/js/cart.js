@@ -20,7 +20,7 @@ function cartLineHtml(item, fromApi) {
   return `<article class="cc-cart-line p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between gap-4">
     <div class="cc-cart-line-info flex-1">
       <span class="cc-cart-line-name text-base font-bold text-slate-900 dark:text-white block">${esc(item.nombre)}</span>
-      <span class="cc-body-sm cc-muted text-xs text-slate-500">${sourceLabel} · Stock: ${esc(item.stock ?? 'Disponible')}</span>
+      <span class="cc-body-sm cc-muted text-xs text-slate-500 dark:text-slate-400">${sourceLabel} · Stock: ${esc(item.stock ?? 'Disponible')}</span>
       <div class="cc-cart-qty mt-2 flex items-center gap-2">
         <button class="cc-qty-btn min-h-[44px] min-w-[44px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-lg flex items-center justify-center text-lg active:scale-95 transition-all" type="button" data-cart-dec="${id}" aria-label="Reducir cantidad">−</button>
         <span class="cc-qty-val font-bold text-base px-2" aria-live="polite">${qty}</span>
@@ -50,8 +50,8 @@ function vendorGroupHtml(storeName, items, fromApi) {
       </div>
     </div>
     <footer class="cc-cart-vendor-footer mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-sm">
-      <div class="cc-order-line flex items-center gap-2"><span class="text-slate-500">Subtotal tienda:</span><b class="text-slate-900 dark:text-white font-bold">${money(groupSubtotal)}</b></div>
-      <div class="cc-order-line flex items-center gap-2"><span class="text-slate-500">Envío estimado:</span><b class="text-slate-900 dark:text-white font-bold">${money(shippingEstimate)}</b></div>
+      <div class="cc-order-line flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400">Subtotal tienda:</span><b class="text-slate-900 dark:text-white font-bold">${money(groupSubtotal)}</b></div>
+      <div class="cc-order-line flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400">Envío estimado:</span><b class="text-slate-900 dark:text-white font-bold">${money(shippingEstimate)}</b></div>
     </footer>
   </section>`;
 }

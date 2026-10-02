@@ -616,7 +616,7 @@ async function initOrderDetail() {
               </div>
               <div class="flex flex-col">
                 <span>${escapeHtml(it.producto_nombre || 'Producto')}</span>
-                ${it.tienda_nombre ? `<span class="text-xs text-slate-500">${escapeHtml(it.tienda_nombre)}</span>` : ''}
+                ${it.tienda_nombre ? `<span class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(it.tienda_nombre)}</span>` : ''}
                 ${rateButton}
               </div>
             </td>

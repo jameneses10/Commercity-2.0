@@ -2580,3 +2580,17 @@ body.cc-night .cc-icon-btn:focus-visible,
 body.cc-night .cc-btn:focus-visible {
   outline-color: var(--cc-primary);
 }
+/* ── RF-301 fase 4 (D7): fondo del boton outline al recibir foco ── */
+/* .cc-btn.outline:focus-visible fija background:#fff7ed, y esa regla (0,3,0)
+   empata en especificidad con .cc-night .cc-btn.outline (0,3,0), de modo que
+   gana por orden en el fichero. Resultado en modo oscuro: crema claro de fondo
+   con el texto #bfdbfe encima, 1.34:1. Afectaba a cualquier boton outline al
+   navegar con teclado, que es justo la ruta de accesibilidad. Se devuelve el
+   relleno de reposo, con lo que el texto vuelve a 11.45:1 y la indicacion de
+   foco la sigue dando el anillo opaco de la fase 3.
+   El estado :hover ya tenia override nocturno propio (#431407, 11.01:1) y no se
+   toca. Se cubren las dos variantes de clase que existen en runtime. */
+body.cc-night .cc-btn.outline:focus-visible,
+body.cc-night .cc-btn-outline:focus-visible {
+  background: #172033;
+}

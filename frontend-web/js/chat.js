@@ -167,7 +167,7 @@ function messageRowHtml(message){
   const deleteAction=(!message?.eliminado && mine)
     ? `<button class="cc-btn secondary text-xs" type="button" data-chat-delete="${chatEsc(id)}">Eliminar mensaje</button>`
     : '';
-  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 block">${author}</b><p>${body}</p>${message?.eliminado?'':attachmentsHtml(message?.archivos)}<time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}${deleteAction}</div></article></div>`;
+  return `<div class="cc-message-row" data-chat-message="${chatEsc(id)}"><article class="cc-message"><b class="text-xs text-slate-500 dark:text-slate-400 block">${author}</b><p>${body}</p>${message?.eliminado?'':attachmentsHtml(message?.archivos)}<time class="text-xs text-slate-400">${chatEsc(message?.created_at ?? message?.creado_en ?? '')}</time><div class="cc-card-actions-row mt-2">${action}${deleteAction}</div></article></div>`;
 }
 async function loadChatMessages(conversationId){
   if(!messages) return;
