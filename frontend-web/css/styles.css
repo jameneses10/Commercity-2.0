@@ -2547,3 +2547,36 @@ body.cc-night .cc-footer-legal a {
 body.cc-night .cc-footer-heading {
   color: rgba(255,255,255,.6);
 }
+/* ── RF-301 fase 3: defectos confirmados por el D2 con Tailwind cargado ── */
+/* Todo limitado a body.cc-night; el modo claro no cambia. Los ratios indicados
+   son los del fondo nocturno real medido en cada caso. */
+
+/* D3 — El banner de tienda pinta texto blanco sobre el degradado de marca
+   (#fa8000 -> #2276ff): 2.58:1 en el extremo naranja y 4.11:1 en el azul, y el
+   rotulo es texto normal de 18px en negrita, asi que el umbral es 4.5. En modo
+   oscuro el degradado pasa a una superficie neutra ya publicada, con lo que el
+   rotulo llega a 14.63:1. Se anula tambien el background-image porque el
+   degradado viene de utilities Tailwind y un background-color no lo tapa. */
+body.cc-night .cc-store-banner {
+  background-image: none;
+  background-color: var(--cc-panel-2);
+}
+
+/* D4 — .cc-role-menu-toggle usa --cc-secondary (#2276ff) como color de texto
+   sobre --cc-panel: 4.31:1, por debajo de AA. Es el control que abre el menu de
+   rol y solo se muestra en <=1100px, asi que el defecto solo se ve en movil.
+   #60a5fa lo lleva a 6.98:1. El borde se deja en #2276ff porque, como
+   componente no textual, sus 4.31:1 ya superan el minimo de 3:1 de la 1.4.11. */
+body.cc-night .cc-role-menu-toggle {
+  color: #60a5fa;
+}
+
+/* D5 y D6 — Los anillos de foco son naranja semitransparente sobre un fondo casi
+   negro: rgba(249,115,22,.45) compone 2.19:1 en .cc-icon-btn y
+   rgba(249,115,22,.5) compone 2.43-2.48:1 en .cc-btn, ambos por debajo del 3:1
+   que exige la pauta 1.4.11 para un indicador de foco. En modo oscuro se usa el
+   naranja de marca opaco, que rinde 5.68-7.83:1 segun la superficie. */
+body.cc-night .cc-icon-btn:focus-visible,
+body.cc-night .cc-btn:focus-visible {
+  outline-color: var(--cc-primary);
+}
