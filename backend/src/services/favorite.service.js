@@ -2,7 +2,12 @@ const model = require('../models/favorite.model');
 const notificationService = require('./notification.service');
 const logService = require('./log.service');
 function err(message, statusCode) { const e = new Error(message); e.statusCode = statusCode; return e; }
-function assertBuyer(user) { if (!['comprador','vendedor','administrador'].includes(user.rol)) throw err('Rol no autorizado para favoritos.', 403); }
+/* RNF-004: esta funcion admitia ['comprador','vendedor','administrador'], que es
+   exactamente el conjunto que authRequired ya garantiza, de modo que su nombre
+   afirmaba lo contrario de lo que hacia y no filtraba nada. Ahora cumple su
+   nombre. La guardia efectiva vive en el router (requireRole('comprador')):
+   esto es la segunda capa, igual que en order.service y return.service. */
+function assertBuyer(user) { if (user.rol !== 'comprador') throw err('Rol no autorizado para favoritos.', 403); }
 const FAVORITE_EVENT_ORDER = ['agotado', 'desactivado', 'precio'];
 const FAVORITE_EVENT_PAYLOADS = {
   agotado: { tipo: 'favorito_agotado', titulo: 'Producto favorito agotado', mensaje: (nombre) => `El producto ${nombre} de tus favoritos quedó agotado.` },
