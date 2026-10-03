@@ -2594,3 +2594,49 @@ body.cc-night .cc-btn.outline:focus-visible,
 body.cc-night .cc-btn-outline:focus-visible {
   background: #172033;
 }
+/* ── RF-302: cambio de tema atomico y transicion sin mezcla cromatica ── */
+:root { --cc-vt-duration: 260ms; }   /* misma duracion que --cc-transition-base */
+
+/* A) Guardia atomica. Mientras applyTheme cambia las clases, ninguna propiedad
+   puede interpolar. Sin esto, texto y fondo cruzan sus luminancias a mitad de
+   camino: se midieron 1.07:1 en .cc-btn.outline, 1.13:1 en .cc-icon-btn y
+   1.25:1 en .cc-side-link, por debajo de sus dos extremos estables. La clase la
+   pone y la quita ui.js en el frame siguiente, asi que hover y focus conservan
+   sus transiciones fuera del cambio de tema. */
+html.cc-theme-switching,
+html.cc-theme-switching *,
+html.cc-theme-switching *::before,
+html.cc-theme-switching *::after {
+  transition: none !important;
+}
+
+/* B) La suavidad la aporta la View Transitions API, no la interpolacion de
+   color. Se anula la animacion por defecto de ambas capturas, que es un
+   cross-fade de opacidad y por tanto mezcla los dos temas pixel a pixel. */
+html.cc-theme-vt::view-transition-old(root),
+html.cc-theme-vt::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+/* La captura VIEJA queda completa debajo; la NUEVA se revela encima con un
+   clip-path circular que nace en el toggle. Cada pixel visible procede de un
+   estado valido completo, nunca de una mezcla. */
+html.cc-theme-vt::view-transition-old(root) { z-index: 1; }
+html.cc-theme-vt::view-transition-new(root) {
+  z-index: 2;
+  /* OJO: --cc-transition-base vale "260ms cubic-bezier(...)", es decir duracion
+     Y easing. Sirve dentro del shorthand `transition`, pero en `animation` deja
+     dos timing functions y la declaracion entera queda invalida: la animacion no
+     llega a correr. Por eso aqui se usa una duracion propia, que replica el
+     valor de ese token. */
+  animation: cc-theme-reveal var(--cc-vt-duration) cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes cc-theme-reveal {
+  from { clip-path: circle(0 at var(--cc-vt-x, 100%) var(--cc-vt-y, 0)); }
+  to   { clip-path: circle(150% at var(--cc-vt-x, 100%) var(--cc-vt-y, 0)); }
+}
+/* C) Con movimiento reducido no se anima nada: el tema se aplica de golpe.
+   ui.js ya evita iniciar la View Transition, y esto lo refuerza en CSS. */
+@media (prefers-reduced-motion: reduce) {
+  html.cc-theme-vt::view-transition-new(root) { animation: none; }
+}

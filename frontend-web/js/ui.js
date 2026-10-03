@@ -72,8 +72,7 @@ function buyerProfileMenu(){
     </div>
   </div>`;
 }
-export function applyTheme(){
-  const mode=localStorage.getItem('cc_theme') || 'day';
+function aplicarClasesTema(mode){
   document.body.classList.toggle('cc-night', mode==='night');
   // RF-297: cc-night gobierna las variables CSS publicadas; .dark en el elemento
   // raiz es lo que hace que las utilities dark:* de Tailwind sigan el mismo
@@ -84,8 +83,49 @@ export function applyTheme(){
     icon.style.setProperty('--cc-icon-url', `url('/assets/icons/${mode==='night' ? 'cc-light-mode.svg' : 'cc-dark-mode.svg'}')`);
   });
 }
+// RF-302: el cambio de tema debe ser ATOMICO. Si se deja que las propiedades de
+// color interpolen, texto y fondo cruzan sus luminancias a mitad de camino y el
+// contraste se desploma durante la transicion: se midieron 1.07:1 en
+// .cc-btn.outline, 1.13:1 en .cc-icon-btn y 1.25:1 en .cc-side-link, por debajo
+// de sus DOS extremos estables. La guardia desactiva las transiciones solo
+// mientras cambian las clases y se retira en el frame siguiente, de modo que
+// hover y focus conservan sus 150 ms fuera del cambio de tema.
+function conCambioAtomico(fn){
+  const root=document.documentElement;
+  root.classList.add('cc-theme-switching');
+  fn();
+  // Doble rAF: el primero deja que el navegador aplique estilos ya con la
+  // guardia puesta; el segundo la retira con el tema nuevo asentado.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.remove('cc-theme-switching')));
+}
+export function applyTheme(){
+  const mode=localStorage.getItem('cc_theme') || 'day';
+  conCambioAtomico(()=>aplicarClasesTema(mode));
+}
+// RF-302: la suavidad se consigue con View Transitions, no interpolando colores.
+// Se anula el cross-fade por defecto y se revela la captura NUEVA con un
+// clip-path circular que nace en el toggle, asi cada pixel visible procede de un
+// estado valido (day completo o night completo) y nunca de una mezcla.
+function cambiarTemaVisual(mode){
+  const root=document.documentElement;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(typeof document.startViewTransition!=='function' || reduce){
+    // Fallback documentado: cambio atomico sin interpolacion.
+    conCambioAtomico(()=>aplicarClasesTema(mode));
+    return;
+  }
+  const btn=document.querySelector('[data-theme-toggle]');
+  if(btn){
+    const r=btn.getBoundingClientRect();
+    root.style.setProperty('--cc-vt-x', (r.left+r.width/2)+'px');
+    root.style.setProperty('--cc-vt-y', (r.top+r.height/2)+'px');
+  }
+  root.classList.add('cc-theme-vt');
+  const vt=document.startViewTransition(()=>conCambioAtomico(()=>aplicarClasesTema(mode)));
+  vt.finished.catch(()=>{}).then(()=>root.classList.remove('cc-theme-vt'));
+}
 function themeMode(){ return localStorage.getItem('cc_theme')==='night' ? 'night' : 'day'; }
-function setThemeMode(mode){ localStorage.setItem('cc_theme', mode); applyTheme(); }
+function setThemeMode(mode, animado){ localStorage.setItem('cc_theme', mode); if(animado) cambiarTemaVisual(mode); else applyTheme(); }
 // RF-298: para el usuario autenticado la verdad persistente es usuarios.modo_oscuro;
 // cc_theme es solo la representacion local. Al iniciar sesion la preferencia que
 // llega del backend gana sobre cualquier cc_theme que hubiera dejado otra cuenta
@@ -105,7 +145,7 @@ export async function toggleTheme(){
   if(themePersistPending) return;
   const previous=themeMode();
   const next=previous==='night' ? 'day' : 'night';
-  setThemeMode(next);
+  setThemeMode(next, true);
   const user=currentUser();
   // El usuario anonimo se queda en localStorage: RF-298 habla del autenticado.
   if(!token() || !user) return;
