@@ -7,7 +7,12 @@ async function changeEmail(req,res,next){try{if(val(req,res))return; res.json(su
 async function deactivate(req,res,next){try{res.json(successResponse('Cuenta inactivada correctamente.',await service.deactivateAccount(req.user.id,{ip:req.ip})))}catch(e){next(e)}}
 async function deleteRequest(req,res,next){try{if(val(req,res))return; res.status(201).json(successResponse('Solicitud de eliminación enviada correctamente.',await service.requestDeletion(req.user.id,req.body,{ip:req.ip})))}catch(e){next(e)}}
 async function adminDeleteRequests(req,res,next){try{res.json(successResponse('Solicitudes de eliminación obtenidas correctamente.',await service.listDeleteRequests()))}catch(e){next(e)}}
-async function adminDeleteRequestDetail(req,res,next){try{res.json(successResponse('Detalle de solicitud obtenido correctamente.',await service.getDeleteRequestDetail(req.params.id)))}catch(e){next(e)}}
+/* RNF-007: deleteRequestDetailValidator exige param('id') entero >= 1 y estaba
+   montado en la ruta, pero este handler no consultaba su resultado, asi que un
+   id invalido llegaba crudo al servicio. Devolvia 404 porque la consulta
+   parametrizada no encontraba fila, no porque la validacion se aplicara: el
+   valor invalido SI entraba. La hermana PATCH ya consultaba val(). */
+async function adminDeleteRequestDetail(req,res,next){try{if(val(req,res))return; res.json(successResponse('Detalle de solicitud obtenido correctamente.',await service.getDeleteRequestDetail(req.params.id)))}catch(e){next(e)}}
 async function adminResolveDeleteRequest(req,res,next){try{if(val(req,res))return; res.json(successResponse('Solicitud de eliminación resuelta correctamente.',await service.resolveDeleteRequest(req.user.id,req.params.id,req.body,{ip:req.ip})))}catch(e){next(e)}}
 async function upgrade(req,res,next){try{if(val(req,res))return; res.json(successResponse('Usuario convertido a vendedor correctamente.',await service.upgrade(req.user.id,req.body)))}catch(e){next(e)}}
 module.exports={getSettings,updateSettings,changePassword,changeEmail,deactivate,deleteRequest,adminDeleteRequests,adminDeleteRequestDetail,adminResolveDeleteRequest,upgrade};
