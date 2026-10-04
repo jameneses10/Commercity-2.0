@@ -5,6 +5,7 @@ const profileModel = require('../models/profile.model');
 const { pauseStoreBySellerId } = require('../models/store.model');
 const { getPendingOperations } = require('../models/accountOperations.model');
 const { anonymizeAccount } = require('../models/accountAnonymization.model');
+const { quarantineProfilePhoto, discardQuarantined, restoreQuarantined } = require('../middlewares/upload.middleware');
 const notificationService = require('./notification.service');
 const logService = require('./log.service');
 const { comparePassword, hashPassword } = require('../utils/password');
@@ -180,6 +181,7 @@ async function getDeleteRequestDetail(userId) {
 }
 async function resolveDeleteRequest(adminId, userId, { estado, respuesta_admin }, meta = {}) {
   if (!['aprobada','rechazada'].includes(estado)) throw err('Estado no permitido.', 400);
+  const fotosEnCuarentena = [];
   const conn = await pool.getConnection();
   try { await conn.beginTransaction();
     const current = await findUserById(userId, conn);
@@ -196,14 +198,33 @@ async function resolveDeleteRequest(adminId, userId, { estado, respuesta_admin }
         if (pending.reembolsos > 0) parts.push(`${pending.reembolsos} reembolso${pending.reembolsos === 1 ? '' : 's'}`);
         throw err(`No puede aprobar la eliminación mientras existan operaciones pendientes: ${parts.join(', ')}.`, 409);
       }
+      /* RNF-009: la foto se saca de la carpeta publica ANTES de la
+         anonimizacion, con rename atomico a una carpeta no publica, para que
+         no exista ninguna ventana en la que la cuenta ya este anonimizada y la
+         URL anterior siga sirviendo la imagen. Solo se borra definitivamente
+         tras el commit; si la transaccion revierte se restaura, de modo que
+         una cuenta que sigue activa nunca se queda sin su foto. */
+      const [[perfilPrevio]] = await conn.query('SELECT foto_url, foto_perfil_url FROM perfiles_usuarios WHERE usuario_id = ? LIMIT 1', [userId]);
+      for (const url of new Set([perfilPrevio?.foto_url, perfilPrevio?.foto_perfil_url].filter(Boolean))) {
+        const ticket = quarantineProfilePhoto(url);
+        if (ticket) fotosEnCuarentena.push(ticket);
+      }
       await anonymizeAccount(userId, respuesta_admin, conn);
     } else {
       await conn.query("UPDATE usuarios SET solicitud_eliminacion_estado='rechazada', solicitud_eliminacion_respuesta_admin=? WHERE id=?", [respuesta_admin || null, userId]);
     }
     await notificationService.create(conn, userId, { tipo:'solicitud_eliminacion_resuelta', titulo: estado === 'aprobada' ? 'Eliminación aprobada' : 'Eliminación rechazada', mensaje: respuesta_admin || 'Tu solicitud de eliminación fue revisada.', entidad_tipo:'usuario', entidad_id:userId });
     await logService.log(conn, { usuario_id:adminId, accion: estado === 'aprobada' ? 'cuenta_anonimizada' : 'solicitud_eliminacion_rechazada', entidad:'usuario', entidad_id:userId, detalle:{ estado, respuesta_admin }, ip:meta.ip });
-    await conn.commit(); return { user: sanitizeUser(await findUserById(userId)) };
-  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+    await conn.commit();
+    // Commit confirmado: la foto ya no puede volver a publicarse.
+    fotosEnCuarentena.forEach(discardQuarantined);
+    return { user: sanitizeUser(await findUserById(userId)) };
+  } catch (e) {
+    await conn.rollback();
+    // La cuenta sigue como estaba: su foto debe volver a su sitio.
+    fotosEnCuarentena.forEach(restoreQuarantined);
+    throw e;
+  } finally { conn.release(); }
 }
 async function upgrade(userId, { acceptSellerTerms, seller_terms_accepted, fecha_nacimiento }) {
   if (!(acceptSellerTerms || seller_terms_accepted)) throw err('Debe aceptar las condiciones de vendedor.', 400);

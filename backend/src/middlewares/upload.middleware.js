@@ -98,4 +98,43 @@ function resolveStoredFile(folder, storedUrl) {
   return destino;
 }
 
-module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile , cleanupFiles, resolveStoredFile };
+/* RNF-009: cuarentena transaccional de la foto de perfil al anonimizar.
+   Poner foto_url a NULL no anonimiza nada si el fichero sigue en
+   /uploads/profiles, que es publico: medido, la URL anterior seguia devolviendo
+   200 sin autenticacion.
+   Tampoco vale un unlink() antes del commit: si la transaccion revierte, la
+   cuenta sigue activa pero su foto desaparecio. Por eso se mueve con rename --
+   atomico dentro del mismo sistema de ficheros, sin ventana en la que siga
+   publicada -- a una carpeta NO publica, y solo se borra tras el commit.
+   La ruta de origen procede de la BD, nunca del cliente, y se valida igual que
+   en resolveStoredFile: carpeta profiles exacta, basename limpio y
+   confinamiento dentro de UPLOAD_ROOT. */
+const QUARANTINE_DIR = path.join(UPLOAD_ROOT, '.quarantine');
+function quarantineProfilePhoto(storedUrl) {
+  const prefijo = '/uploads/profiles/';
+  if (typeof storedUrl !== 'string' || !storedUrl.startsWith(prefijo)) return null;
+  const nombre = storedUrl.slice(prefijo.length);
+  if (!nombre || nombre !== path.basename(nombre) || nombre === '.' || nombre === '..') return null;
+  const dir = path.join(UPLOAD_ROOT, 'profiles');
+  const origen = path.resolve(dir, nombre);
+  const rel = path.relative(dir, origen);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  // Una foto ya inexistente no debe impedir anonimizar la cuenta.
+  if (!fs.existsSync(origen)) return null;
+  ensureDir(QUARANTINE_DIR);
+  const destino = path.join(QUARANTINE_DIR, `${Date.now()}_${crypto.randomBytes(8).toString('hex')}_${nombre}`);
+  try { fs.renameSync(origen, destino); } catch (e) { return null; }
+  return { origen, destino };
+}
+function discardQuarantined(ticket) {
+  if (!ticket) return false;
+  try { fs.unlinkSync(ticket.destino); return true; }
+  catch (e) { if (e.code !== 'ENOENT') console.warn('No fue posible borrar la foto en cuarentena.', e.message); return false; }
+}
+function restoreQuarantined(ticket) {
+  if (!ticket) return false;
+  try { fs.renameSync(ticket.destino, ticket.origen); return true; }
+  catch (e) { console.warn('No fue posible restaurar la foto en cuarentena.', e.message); return false; }
+}
+
+module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile , cleanupFiles, resolveStoredFile, quarantineProfilePhoto, discardQuarantined, restoreQuarantined };
