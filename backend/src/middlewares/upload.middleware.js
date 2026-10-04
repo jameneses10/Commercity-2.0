@@ -74,4 +74,28 @@ const productUpload = multer({ storage: makeStorage('products'), fileFilter: fil
 const profileUpload = multer({ storage: makeStorage('profiles'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 3 * 1024 * 1024 } });
 const chatUpload = multer({ storage: makeStorage('chat'), fileFilter: fileFilter({ allowedExt: CHAT_EXTENSIONS, allowedMime: CHAT_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
 const returnUpload = multer({ storage: makeStorage('returns'), fileFilter: fileFilter({ allowedExt: IMAGE_EXTENSIONS, allowedMime: IMAGE_MIMES }), limits: { fileSize: 10 * 1024 * 1024, files: 5 } });
-module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile , cleanupFiles };
+/* RNF-006: traduce el url_archivo ALMACENADO EN BD a una ruta fisica, para los
+   adjuntos privados que ya no se sirven por express.static. El valor de entrada
+   procede siempre de una fila de BD previamente autorizada, nunca del cliente,
+   y aun asi se valida de forma defensiva: carpeta exacta esperada, basename sin
+   componentes de ruta, y la ruta final confinada dentro de UPLOAD_ROOT/<folder>.
+   Devuelve null si algo no cuadra o el fichero no existe: quien llama responde
+   404 y no revela la diferencia entre "no autorizado" y "no esta en disco". */
+const PRIVATE_FOLDERS = new Set(['chat', 'returns']);
+function resolveStoredFile(folder, storedUrl) {
+  if (!PRIVATE_FOLDERS.has(folder)) return null;
+  if (typeof storedUrl !== 'string' || !storedUrl) return null;
+  const esperado = `/uploads/${folder}/`;
+  if (!storedUrl.startsWith(esperado)) return null;
+  const nombre = storedUrl.slice(esperado.length);
+  // Un basename limpio: sin separadores, sin "..", sin rutas absolutas.
+  if (!nombre || nombre !== path.basename(nombre) || nombre === '.' || nombre === '..') return null;
+  const dir = path.join(UPLOAD_ROOT, folder);
+  const destino = path.resolve(dir, nombre);
+  const rel = path.relative(dir, destino);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  if (!fs.existsSync(destino) || !fs.statSync(destino).isFile()) return null;
+  return destino;
+}
+
+module.exports = { storeUpload, productUpload, profileUpload, chatUpload, returnUpload, multerErrorHandler, mapFile , cleanupFiles, resolveStoredFile };

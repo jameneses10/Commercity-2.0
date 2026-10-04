@@ -15,5 +15,11 @@ router.post('/', returnUpload.array('evidencias', 5), multerErrorHandler, create
    Las otras dos rutas NO llevan guardia a proposito: POST / valida comprador
    en el servicio y GET /:id es autorizacion contextual por participante. */
 router.get('/my-returns', requireRole('comprador'), c.myReturns);
+/* RNF-006: descarga de evidencia privada. Sin requireRole a proposito: por
+   RF-209/RF-210/RF-212 acceden el comprador propietario, el vendedor dueño de
+   la tienda y el administrador, asi que la autorizacion es contextual y la
+   resuelve el servicio contra la devolucion padre. Se declara antes de /:id
+   por legibilidad; no hay ambiguedad porque tiene dos segmentos. */
+router.get('/evidences/:evidenceId', c.evidence);
 router.get('/:id', idParam, c.detail);
 module.exports = router;

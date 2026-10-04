@@ -3,6 +3,7 @@ const contentReportModel=require('../models/contentReport.model');
 const model=require('../models/chat.model');
 const notification=require('./notification.service');
 const logService=require('./log.service');
+const { resolveStoredFile }=require('../middlewares/upload.middleware');
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 function participates(c,userId){ return c && (Number(c.comprador_id)===Number(userId)||Number(c.vendedor_id)===Number(userId)); }
 /* RF-288: estado de conexion de la CONTRAPARTE, relativo a quien consulta. El
@@ -24,4 +25,24 @@ async function markRead(user,id){ const c=await model.findConversation(id); if(!
 async function notifyAdminsMessageReport(messageId,conversacionId){ const [admins]=await pool.query(`SELECT u.id FROM usuarios u INNER JOIN roles r ON r.id=u.rol_id WHERE r.nombre='administrador' AND u.estado='activo'`); for(const a of admins){ await notification.create(pool,a.id,{tipo:'nuevo_reporte_mensaje',titulo:'Nuevo reporte de mensaje',mensaje:'Un mensaje de chat fue reportado.',entidad_tipo:'mensajes',entidad_id:messageId,url_destino:'/pages/admin-reportes.html'}); } return admins.length; }
 async function reportMessage(user,id,ip){ const m=await model.findMessage(id); if(!m || !participates(m,user.id)) throw err('Mensaje no encontrado o sin permisos.',404); const updated=await model.reportMessage(id); if(!await contentReportModel.findOpenDuplicate('messages',id,user.id)) await contentReportModel.create('messages',{targetId:id,reporterId:user.id,motivo:null,descripcion:null}); await notifyAdminsMessageReport(id,m.conversacion_id); await logService.log(null,{usuario_id:user.id,accion:'mensaje_chat_reportado',entidad:'mensajes',entidad_id:id,detalle:{conversacion_id:m.conversacion_id},ip}); return updated; }
 async function deleteMessage(user,id,ip){ const m=await model.findMessage(id); if(!m || !participates(m,user.id)) throw err('Mensaje no encontrado o sin permisos.',404); if(Number(m.emisor_id)!==Number(user.id) && user.rol!=='administrador') throw err('Solo el emisor o administrador puede eliminar el mensaje.',403); const updated=await model.deleteMessage(id); await logService.log(null,{usuario_id:user.id,accion:'mensaje_chat_eliminado',entidad:'mensajes',entidad_id:id,detalle:{conversacion_id:m.conversacion_id},ip}); return updated; }
-module.exports={createConversation,list,messages,sendMessage,markRead,reportMessage,deleteMessage};
+/* RNF-006: la autorizacion es por RECURSO, no solo por sesion. Exigir unicamente
+   authRequired seguiria siendo IDOR, porque el nombre del fichero era la unica
+   credencial: cualquier autenticado que lo conociera podia descargarlo.
+   Aqui se resuelve adjunto -> mensaje -> conversacion y solo pasan sus dos
+   participantes. Se devuelve 404 en todos los casos negativos para no revelar
+   si el adjunto existe.
+   RF-293: un mensaje eliminado conserva el fichero fisico como evidencia
+   interna, pero el participante ya no puede recuperarlo. */
+async function attachment(user,attachmentId){
+ const id=Number(attachmentId);
+ const noEncontrado=err('Archivo no encontrado.',404);
+ if(!Number.isInteger(id) || id<1) throw noEncontrado;
+ const a=await model.findAttachmentWithContext(id);
+ if(!a) throw noEncontrado;
+ if(!participates(a,user.id)) throw noEncontrado;
+ if(a.eliminado===true || Number(a.eliminado)===1) throw noEncontrado;
+ const ruta=resolveStoredFile('chat',a.url_archivo);
+ if(!ruta) throw noEncontrado;
+ return {ruta, nombre:a.nombre_original||'adjunto', mime:a.mime_type||'application/octet-stream'};
+}
+module.exports={createConversation,list,messages,sendMessage,markRead,reportMessage,deleteMessage,attachment};

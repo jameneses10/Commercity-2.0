@@ -19,7 +19,14 @@ async function listForUser(userId){ const [rows]=await pool.query(`SELECT c.*, u
    compartida por la lista y por la consulta exacta. */
 function isDeletedMessage(row){ return row?.eliminado===true || Number(row?.eliminado)===1; }
 const MESSAGE_SELECT=`SELECT m.id,m.conversacion_id,m.emisor_id,CASE WHEN m.eliminado THEN NULL ELSE m.contenido END mensaje,CASE WHEN m.eliminado THEN NULL ELSE m.contenido END contenido,m.tipo,m.eliminado,m.reportado,m.creado_en AS created_at,m.creado_en,ue.nombre emisor_nombre FROM mensajes m INNER JOIN usuarios ue ON ue.id=m.emisor_id`;
-async function filesForMessageIds(ids){ if(!ids.length) return new Map(); const [files]=await pool.query('SELECT id,mensaje_id,url_archivo,nombre_original,mime_type,size_bytes,creado_en FROM mensaje_archivos WHERE mensaje_id IN (?) ORDER BY id ASC',[ids]); const map=new Map(ids.map(id=>[Number(id),[]])); files.forEach(f=>map.get(Number(f.mensaje_id))?.push(f)); return map; }
+/* RNF-006: la respuesta publica ya NO lleva url_archivo. La ruta fisica es un
+   detalle interno; el cliente recibe download_url, que apunta al endpoint que
+   autoriza por participante. */
+function adjuntoPublico(f){ return { id:f.id, mensaje_id:f.mensaje_id, nombre_original:f.nombre_original, mime_type:f.mime_type, size_bytes:f.size_bytes, creado_en:f.creado_en, download_url:`/api/v1/chat/attachments/${f.id}` }; }
+async function filesForMessageIds(ids){ if(!ids.length) return new Map(); const [files]=await pool.query('SELECT id,mensaje_id,url_archivo,nombre_original,mime_type,size_bytes,creado_en FROM mensaje_archivos WHERE mensaje_id IN (?) ORDER BY id ASC',[ids]); const map=new Map(ids.map(id=>[Number(id),[]])); files.forEach(f=>map.get(Number(f.mensaje_id))?.push(adjuntoPublico(f))); return map; }
+/* Devuelve el adjunto junto a la conversacion a la que pertenece y el estado de
+   borrado de su mensaje, para que el servicio pueda autorizar en una consulta. */
+async function findAttachmentWithContext(id){ const [[row]]=await pool.query(`SELECT a.id,a.url_archivo,a.nombre_original,a.mime_type,m.eliminado,c.comprador_id,c.vendedor_id FROM mensaje_archivos a INNER JOIN mensajes m ON m.id=a.mensaje_id INNER JOIN conversaciones c ON c.id=m.conversacion_id WHERE a.id=? LIMIT 1`,[id]); return row||null; }
 async function messages(conversacion_id,{limit=50,offset=0}){ const [rows]=await pool.query(`${MESSAGE_SELECT} WHERE m.conversacion_id=? ORDER BY m.creado_en ASC LIMIT ? OFFSET ?`,[conversacion_id,limit,offset]); const map=await filesForMessageIds(rows.filter(r=>!isDeletedMessage(r)).map(r=>r.id)); return rows.map(r=>({...r,archivos:isDeletedMessage(r)?[]:(map.get(Number(r.id))||[])})); }
 /* RF-291 CORRECCION: recupera UN mensaje por su id con el mismo shape
    renderizable que devuelve messages(), incluidos sus archivos. Antes el
@@ -38,4 +45,4 @@ async function markRead(conversacion_id,userId){ const [r]=await pool.query('UPD
 async function findMessage(id){ const [[m]]=await pool.query('SELECT m.*, c.comprador_id,c.vendedor_id FROM mensajes m INNER JOIN conversaciones c ON c.id=m.conversacion_id WHERE m.id=?',[id]); return m||null; }
 async function reportMessage(id){ await pool.query('UPDATE mensajes SET reportado=TRUE WHERE id=?',[id]); return findMessage(id); }
 async function deleteMessage(id){ await pool.query('UPDATE mensajes SET eliminado=TRUE, contenido=NULL WHERE id=?',[id]); return findMessage(id); }
-module.exports={pool,findUser,findStore,findProduct,findConversation,findExisting,createConversation,listForUser,messages,addMessage,markRead,findMessage,reportMessage,deleteMessage,findRenderableMessage};
+module.exports={pool,findUser,findStore,findProduct,findConversation,findExisting,createConversation,listForUser,messages,addMessage,markRead,findMessage,reportMessage,deleteMessage,findRenderableMessage,findAttachmentWithContext};

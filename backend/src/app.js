@@ -48,13 +48,26 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), {
+/* RNF-006: antes se publicaba TODO /uploads con express.static, de modo que
+   cualquiera sin autenticar podia descargar un adjunto de chat o una evidencia
+   de devolucion con solo conocer su nombre de fichero. Medido: 200 y contenido
+   completo sin token.
+   Solo siguen siendo publicas las tres carpetas que lo son por diseño --
+   catalogo y perfil publico (RF-093, RF-094, RF-229) -- y se montan una a una,
+   conservando exactamente las mismas URLs. Las privadas, chat y returns, ya no
+   se montan: se sirven por endpoints que autorizan contra el recurso padre, asi
+   que no basta con conocer el nombre del fichero. */
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
+const estaticoPublico = (carpeta) => express.static(path.join(uploadsRoot, carpeta), {
   fallthrough: false,
   maxAge: '1d',
   setHeaders(res) {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   },
-}));
+});
+app.use('/uploads/products', estaticoPublico('products'));
+app.use('/uploads/stores', estaticoPublico('stores'));
+app.use('/uploads/profiles', estaticoPublico('profiles'));
 
 if (env.nodeEnv !== 'test') {
   app.use(morgan('dev'));

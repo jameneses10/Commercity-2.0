@@ -16,4 +16,9 @@ router.post('/conversations/:id/messages',...chatAuth,chatUpload.array('files',5
 router.patch('/conversations/:id/read',...chatAuth,c.read);
 router.patch('/messages/:id/report',...chatAuth,c.report);
 router.delete('/messages/:id',...chatAuth,c.remove);
+/* RNF-006: descarga de adjunto privado. Usa authRequired y requireRole pero
+   deliberadamente NO presenceTouch: bajar una imagen o un PDF en segundo plano
+   no es actividad del usuario y prolongaria de forma artificial su estado "en
+   linea", que el contrato de presencia fija en una ventana de 5 minutos. */
+router.get('/attachments/:attachmentId',authRequired,requireRole('comprador','vendedor'),c.attachment);
 module.exports=router;

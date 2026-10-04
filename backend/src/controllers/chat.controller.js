@@ -22,4 +22,16 @@ async function send(req,res,next){
 async function read(req,res,next){try{res.json(successResponse('Conversación marcada como leída.',await service.markRead(req.user,req.params.id)))}catch(e){next(e)}}
 async function report(req,res,next){try{res.json(successResponse('Mensaje reportado correctamente.',{message:await service.reportMessage(req.user,req.params.id,req.ip)}))}catch(e){next(e)}}
 async function remove(req,res,next){try{res.json(successResponse('Mensaje eliminado correctamente.',{message:await service.deleteMessage(req.user,req.params.id,req.ip)}))}catch(e){next(e)}}
-module.exports={list,create,messages,send,read,report,remove};
+/* RNF-006: sirve el adjunto ya autorizado por el servicio. El nombre de fichero
+   nunca procede del cliente: se deriva de la fila de BD. Cache privada para que
+   ningun intermediario comparta un fichero de una conversacion. */
+async function attachment(req,res,next){
+ try{
+  const f=await service.attachment(req.user,req.params.attachmentId);
+  res.setHeader('Cache-Control','private, no-store');
+  res.setHeader('Content-Type',f.mime);
+  res.setHeader('Content-Disposition',`inline; filename="${encodeURIComponent(f.nombre)}"`);
+  res.sendFile(f.ruta);
+ }catch(e){next(e)}
+}
+module.exports={list,create,messages,send,read,report,remove,attachment};

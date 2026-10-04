@@ -24,7 +24,22 @@ async function addItem(conn, devolucionId, it) { await conn.query(`INSERT INTO d
 async function addEvidence(conn, devolucionId, file) { await conn.query(`INSERT INTO devolucion_evidencias (devolucion_id,url_archivo,nombre_original,mime_type,size_bytes) VALUES (?,?,?,?,?)`, [devolucionId, file.url, file.nombre_original, file.mime_type, file.size_bytes]); }
 async function findById(id) { const [r] = await pool.query(`SELECT d.*, u.nombre comprador_nombre, t.nombre tienda_nombre FROM devoluciones d INNER JOIN usuarios u ON u.id=d.comprador_id INNER JOIN tiendas t ON t.id=d.tienda_id WHERE d.id=? LIMIT 1`, [id]); return r[0] || null; }
 async function items(id) { const [r] = await pool.query(`SELECT i.*, p.nombre producto_nombre FROM devolucion_items i INNER JOIN productos p ON p.id=i.producto_id WHERE i.devolucion_id=? ORDER BY i.id`, [id]); return r; }
-async function evidences(id) { const [r] = await pool.query('SELECT * FROM devolucion_evidencias WHERE devolucion_id=? ORDER BY id', [id]); return r; }
+/* RNF-006: la respuesta publica ya NO lleva url_archivo; el cliente recibe
+   download_url hacia el endpoint que autoriza contra la devolucion padre. */
+async function evidences(id) {
+  const [r] = await pool.query('SELECT id,devolucion_id,nombre_original,mime_type,size_bytes,creado_en FROM devolucion_evidencias WHERE devolucion_id=? ORDER BY id', [id]);
+  return r.map((e) => ({ ...e, download_url: `/api/v1/returns/evidences/${e.id}` }));
+}
+/* Evidencia junto a su devolucion y al dueño de la tienda, para autorizar en
+   una sola consulta. */
+async function findEvidenceWithContext(id) {
+  const [[row]] = await pool.query(`SELECT e.id,e.url_archivo,e.nombre_original,e.mime_type,d.comprador_id,t.usuario_id vendedor_id
+    FROM devolucion_evidencias e
+    INNER JOIN devoluciones d ON d.id = e.devolucion_id
+    INNER JOIN tiendas t ON t.id = d.tienda_id
+    WHERE e.id=? LIMIT 1`, [id]);
+  return row || null;
+}
 async function hydrate(row) { if (!row) return null; return { ...row, items: await items(row.id), evidencias: await evidences(row.id) }; }
 async function listBuyer(userId) { const [r] = await pool.query('SELECT * FROM devoluciones WHERE comprador_id=? ORDER BY creado_en DESC', [userId]); return r; }
 async function listSeller(userId) { const [r] = await pool.query(`SELECT d.* FROM devoluciones d INNER JOIN tiendas t ON t.id=d.tienda_id WHERE t.usuario_id=? ORDER BY d.creado_en DESC`, [userId]); return r; }
@@ -36,4 +51,4 @@ async function sellerForStore(tiendaId) { const [[r]] = await pool.query('SELECT
 async function findByIdForUpdate(id, conn) { const [r] = await conn.query('SELECT * FROM devoluciones WHERE id=? LIMIT 1 FOR UPDATE', [id]); return r[0] || null; }
 async function findRefundByReturnId(devolucionId, conn) { const [r] = await conn.query('SELECT * FROM reembolsos_simulados WHERE devolucion_id=? LIMIT 1', [devolucionId]); return r[0] || null; }
 async function createSimulatedRefund(conn, { devolucion_id, pedido_id, monto }) { const [r] = await conn.query('INSERT INTO reembolsos_simulados (devolucion_id,pedido_id,monto) VALUES (?,?,?)', [devolucion_id, pedido_id, monto]); return r.insertId; }
-module.exports = { pool, orderForBuyer, detailsForOrder, deliveredStoreIds, hasActiveDuplicate, createReturn, addItem, addEvidence, findById, hydrate, listBuyer, listSeller, listAdmin, sellerOwnsReturn, updateSeller, updateAdmin, sellerForStore, findByIdForUpdate, findRefundByReturnId, createSimulatedRefund };
+module.exports = { findEvidenceWithContext, pool, orderForBuyer, detailsForOrder, deliveredStoreIds, hasActiveDuplicate, createReturn, addItem, addEvidence, findById, hydrate, listBuyer, listSeller, listAdmin, sellerOwnsReturn, updateSeller, updateAdmin, sellerForStore, findByIdForUpdate, findRefundByReturnId, createSimulatedRefund };

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const model = require('../models/return.model');
 const notificationService = require('./notification.service');
 const logService = require('./log.service');
+const { resolveStoredFile } = require('../middlewares/upload.middleware');
 function err(message, statusCode) { const e = new Error(message); e.statusCode = statusCode; return e; }
 const BUYER_STATES = ['solicitada'];
 const SELLER_STATES = ['en_revision','aprobada','rechazada'];
@@ -107,4 +108,22 @@ async function adminResolve(user, id, payload, meta = {}) {
   await notificationService.create(null, sellerId, { tipo:'devolucion_resuelta', titulo:statusTitle(payload.estado), mensaje:'El administrador actualizó una devolución de tu tienda.', entidad_tipo:'devolucion', entidad_id:id });
   return { return: await model.hydrate(updated) };
 }
-module.exports = { create, myReturns, detailForUser, sellerReturns, sellerUpdate, adminReturns, adminResolve };
+/* RNF-006: autorizacion por RECURSO. La evidencia se resuelve hasta su
+   devolucion y la tienda implicada; solo pasan el comprador propietario, el
+   vendedor dueño de esa tienda y el administrador, que por RF-212 interviene en
+   disputas. Todo lo demas recibe 404 para no revelar si la evidencia existe. */
+async function evidence(user, evidenceId) {
+  const id = Number(evidenceId);
+  const noEncontrado = err('Evidencia no encontrada.', 404);
+  if (!Number.isInteger(id) || id < 1) throw noEncontrado;
+  const e = await model.findEvidenceWithContext(id);
+  if (!e) throw noEncontrado;
+  const esComprador = Number(e.comprador_id) === Number(user.id);
+  const esVendedor = Number(e.vendedor_id) === Number(user.id);
+  const esAdmin = user.rol === 'administrador';
+  if (!esComprador && !esVendedor && !esAdmin) throw noEncontrado;
+  const ruta = resolveStoredFile('returns', e.url_archivo);
+  if (!ruta) throw noEncontrado;
+  return { ruta, nombre: e.nombre_original || 'evidencia', mime: e.mime_type || 'application/octet-stream' };
+}
+module.exports = { create, myReturns, detailForUser, sellerReturns, sellerUpdate, adminReturns, adminResolve, evidence };

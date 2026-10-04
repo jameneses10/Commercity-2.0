@@ -12,4 +12,15 @@ async function sellerList(req, res, next) { try { res.json(successResponse('Devo
 async function sellerUpdate(req, res, next) { try { if (val(req, res)) return; res.json(successResponse('Devolución actualizada por vendedor.', await service.sellerUpdate(req.user, req.params.id, req.body, { ip:req.ip }))); } catch (e) { next(e); } }
 async function adminList(req, res, next) { try { res.json(successResponse('Devoluciones administrativas obtenidas correctamente.', await service.adminReturns(req.user))); } catch (e) { next(e); } }
 async function adminResolve(req, res, next) { try { if (val(req, res)) return; res.json(successResponse('Devolución resuelta por administrador.', await service.adminResolve(req.user, req.params.id, req.body, { ip:req.ip }))); } catch (e) { next(e); } }
-module.exports = { create, myReturns, detail, sellerList, sellerUpdate, adminList, adminResolve };
+/* RNF-006: sirve la evidencia ya autorizada por el servicio. El nombre fisico
+   nunca procede del cliente; se deriva de la fila de BD. */
+async function evidence(req, res, next) {
+  try {
+    const f = await service.evidence(req.user, req.params.evidenceId);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(f.nombre)}"`);
+    res.sendFile(f.ruta);
+  } catch (e) { next(e); }
+}
+module.exports = { create, myReturns, detail, sellerList, sellerUpdate, adminList, adminResolve, evidence };

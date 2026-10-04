@@ -1,5 +1,4 @@
 import { api, token, currentUser } from './api.js';
-import { UPLOADS_BASE_URL } from './config.js'; // RF-291
 const form=document.querySelector('[data-chat-form]');
 const input=document.querySelector('[data-chat-input]');
 const messages=document.querySelector('[data-chat-messages]');
@@ -63,6 +62,7 @@ async function sendChatMessage(){
    const placeholder=messages.querySelector('.cc-muted');
    if(placeholder && !messages.querySelector('[data-chat-message]')) messages.innerHTML='';
    messages.insertAdjacentHTML('beforeend',messageRowHtml(created));
+   hydrateAttachments(messages);  // RNF-006
    messages.scrollTop=messages.scrollHeight;
   }
   if(input) input.value='';
@@ -91,15 +91,35 @@ const chatState=document.querySelector('[data-chat-state]');
 // Solo se puede reportar un id devuelto por el endpoint real de mensajes.
 const realMessageIds=new Set();
 let activeConversationId=null;
-/* RF-291: resuelve la URL de un adjunto servido por /uploads. Mismo criterio que
-   admin.js safeEvidenceUrl: devuelve null para cualquier cosa que no sea una ruta
-   de /uploads o una URL http(s), para no convertir un javascript: o data: en href. */
-function chatFileUrl(value){
- if(!value) return null;
- const raw=String(value).trim();
- if(raw.startsWith('/uploads')) return `${UPLOADS_BASE_URL}${raw.replace('/uploads','')}`;
- if(/^https?:///i.test(raw)) return raw;
- return null;
+/* RNF-006: los adjuntos ya no viven en /uploads, que era publico. El backend
+   entrega download_url hacia un endpoint que autoriza por participante, y el
+   navegador NO adjunta la cabecera Authorization a un <img src>, asi que hay
+   que descargarlos con api.blob() y usar un object URL.
+
+   Esta funcion sustituye a chatFileUrl(), que ademas arrastraba un error de
+   sintaxis desde 991103e: en `if(/^https?:///i.test(raw))` la regex literal
+   cerraba en la segunda barra y `//i.test(raw))` quedaba como comentario, de
+   modo que el `if(` nunca se cerraba y el modulo entero no cargaba.
+
+   Solo se acepta la forma exacta del endpoint protegido: nunca se construye un
+   destino a partir de un valor arbitrario, para no convertir un javascript: o
+   un data: en algo navegable. */
+function chatDownloadPath(file){
+ const raw=String(file?.download_url ?? '').trim();
+ return /^\/api\/v1\/chat\/attachments\/[0-9]+$/.test(raw) ? raw.replace('/api/v1','') : null;
+}
+/* Cada adjunto abierto retiene su Blob en memoria hasta que se revoca; se
+   liberan todos al cambiar de conversacion. */
+const chatObjectUrls=new Set();
+function revokeChatObjectUrls(){
+ chatObjectUrls.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){ /* ya revocado */ } });
+ chatObjectUrls.clear();
+}
+async function chatAttachmentUrl(path){
+ const blob=await api.blob(path);
+ const url=URL.createObjectURL(blob);
+ chatObjectUrls.add(url);
+ return url;
 }
 function chatFileSize(bytes){
  const n=Number(bytes);
@@ -108,20 +128,69 @@ function chatFileSize(bytes){
  if(n<1024*1024) return `${(n/1024).toFixed(0)} KB`;
  return `${(n/(1024*1024)).toFixed(1)} MB`;
 }
+/* RNF-006: el marcado ya no lleva la URL del fichero. Se emite un marcador con
+   el path protegido en data-*, y el contenido se pide con api.blob() despues:
+   las imagenes cuando entran en pantalla y los documentos solo al pulsarlos.
+
+   Precargar todo seria caro: hasta 5 adjuntos por mensaje y 10 MB cada uno, por
+   50 mensajes de historial.
+
+   Aqui tambien se corrige el segundo error de sintaxis de 991103e:
+   `/^image//.test(...)` cerraba la regex en la segunda barra y dejaba una
+   division por `.test(...)`. El primero lo enmascaraba. */
+function esImagen(mime){ return /^image\//.test(String(mime || '')); }
 function attachmentsHtml(archivos){
  if(!Array.isArray(archivos)||!archivos.length) return '';
  const items=archivos.map(file=>{
-  const href=chatFileUrl(file?.url_archivo ?? file?.url);
+  const path=chatDownloadPath(file);
   const name=chatEsc(file?.nombre_original || 'Archivo adjunto');
   const size=chatFileSize(file?.size_bytes);
   const meta=size?` <span class="text-slate-400">(${chatEsc(size)})</span>`:'';
-  if(!href) return `<li class="text-xs text-slate-400">${name}${meta}</li>`;
-  const isImage=/^image//.test(String(file?.mime_type||''));
-  const preview=isImage?`<img class="cc-chat-attachment-img max-h-40 rounded-lg mt-1" src="${chatEsc(href)}" alt="${name}" loading="lazy">`:'';
-  return `<li class="text-xs mt-1"><a class="underline text-[#2276ff]" href="${chatEsc(href)}" target="_blank" rel="noopener noreferrer">${name}</a>${meta}${preview}</li>`;
+  if(!path) return `<li class="text-xs text-slate-400">${name}${meta}</li>`;
+  const p=chatEsc(path);
+  if(esImagen(file?.mime_type)){
+   return `<li class="text-xs mt-1">${name}${meta}<span class="cc-chat-attachment-img max-h-40 rounded-lg mt-1 block text-slate-400" data-chat-image="${p}" data-chat-name="${name}">Cargando imagen...</span></li>`;
+  }
+  return `<li class="text-xs mt-1"><button type="button" class="underline text-[#2276ff]" data-chat-file="${p}" data-chat-name="${name}">${name}</button>${meta}</li>`;
  }).join('');
  return `<ul class="cc-chat-attachments mt-1">${items}</ul>`;
 }
+/* Las imagenes se traen cuando entran en viewport; si no hay IntersectionObserver
+   se cargan directamente. Cada marcador se procesa una sola vez. */
+function hydrateAttachments(root){
+ if(!root) return;
+ const pendientes=root.querySelectorAll('[data-chat-image]:not([data-chat-done])');
+ const cargar=async (el)=>{
+  el.setAttribute('data-chat-done','1');
+  try{
+   const url=await chatAttachmentUrl(el.getAttribute('data-chat-image'));
+   const img=document.createElement('img');
+   img.className='cc-chat-attachment-img max-h-40 rounded-lg mt-1';
+   img.alt=el.getAttribute('data-chat-name')||'';
+   img.src=url;
+   el.replaceWith(img);
+  }catch(error){ el.textContent='No fue posible cargar la imagen.'; }
+ };
+ if(typeof IntersectionObserver!=='function'){ pendientes.forEach(cargar); return; }
+ const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ obs.unobserve(e.target); cargar(e.target); } });
+ });
+ pendientes.forEach(el=>obs.observe(el));
+}
+/* Los documentos solo se descargan al pulsarlos, conservando nombre_original. */
+document.addEventListener('click', async (e)=>{
+ const btn=e.target.closest?.('[data-chat-file]');
+ if(!btn) return;
+ const etiqueta=btn.textContent;
+ btn.textContent='Descargando...';
+ try{
+  const url=await chatAttachmentUrl(btn.getAttribute('data-chat-file'));
+  const a=document.createElement('a');
+  a.href=url; a.download=btn.getAttribute('data-chat-name')||'adjunto';
+  document.body.appendChild(a); a.click(); a.remove();
+ }catch(error){ setChatState('No fue posible descargar el archivo.'); }
+ btn.textContent=etiqueta;
+});
 function chatEsc(value){ return String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])); }
 function setChatState(text){ if(chatState) chatState.textContent=text; }
 /* ── RF-288: estado de conexion en linea / fuera de linea ──
@@ -171,6 +240,7 @@ function messageRowHtml(message){
 }
 async function loadChatMessages(conversationId){
   if(!messages) return;
+  revokeChatObjectUrls();  // RNF-006: libera los blobs de la conversacion anterior
   activeConversationId=conversationId;
   messages.innerHTML='<p class="cc-muted">Cargando mensajes...</p>';
   try{
@@ -180,6 +250,7 @@ async function loadChatMessages(conversationId){
     realMessageIds.clear();
     list.forEach(item=>{ if(item?.id!==undefined&&item?.id!==null) realMessageIds.add(String(item.id)); });
     messages.innerHTML=list.length?list.map(messageRowHtml).join(''):'<p class="cc-muted">Esta conversacion no tiene mensajes.</p>';
+    hydrateAttachments(messages);  // RNF-006
     if(payload.conversation) setChatTitle(conversationLabel(payload.conversation));
     // RF-288: el encabezado pasa a mostrar el estado de conexion de la contraparte.
     if(payload.conversation && payload.conversation.contraparte_en_linea!==undefined){

@@ -326,7 +326,16 @@ async function paymentsPage(activeFilters={}){
   document.querySelector('#adminPaymentsFilterClear')?.addEventListener('click',()=>{ paymentsPage({}); });
 }
 async function shipmentsPage(){ const shipments=(await safe('/admin/shipments')).data?.shipments||[]; main().innerHTML=shell('Envíos','cc-shipping-package.svg','Logística','Envíos reales del marketplace.')+filters('shipments',[['all','Todos'],['pendiente','Pendientes'],['en_camino','En camino'],['entregado','Entregados'],['cancelado','Cancelados']],'Buscar envío')+`<section class="cc-grid cols-2">${shipments.map(s=>`<article class="cc-card" data-admin-item="shipments" data-status="${esc(norm(s.estado))}" data-filter-text="${esc(JSON.stringify(s))}"><span class="cc-chip ${chipClass(s.estado)}">${esc(s.estado)}</span><h2>Envío #${esc(s.id)}</h2><p class="cc-muted">Pedido #${esc(s.pedido_id)} · Comprador: ${esc(s.comprador_nombre||'')}</p><p class="cc-muted">Tienda: ${esc(s.tienda_nombre||'')} · Vendedor: ${esc(s.vendedor_nombre||'')}</p><button class="cc-btn outline" data-visual-action="Detalle de envío real consultado" type="button">Ver detalle</button></article>`).join('')}</section>${shipments.length?'':empty('cc-shipping-package.svg','Sin envíos reales.','El endpoint administrativo de envíos respondió vacío.')}`; bindFilters(main()); }
-function safeEvidenceUrl(v){ if(!v) return null; const s=String(v).trim(); if(s.startsWith('/uploads')) return `${UPLOADS_BASE_URL}${s.replace('/uploads','')}`; if(s.startsWith('/')) return `${UPLOADS_BASE_URL}/${s.replace(/^\/+/, '')}`; if(/^https?:\/\//i.test(s)) return s; return null; }
+/* RNF-006: las evidencias ya no se sirven por /uploads, que era publico. El
+   backend entrega download_url hacia un endpoint que autoriza contra la
+   devolucion padre, y el navegador no adjunta la cabecera Authorization a un
+   <a href>, asi que se descargan con api.blob() al pulsarlas. Solo se acepta la
+   forma exacta del endpoint: nunca se construye un destino con un valor
+   arbitrario, para no convertir un javascript: o un data: en navegable. */
+function safeEvidencePath(ev){
+  const raw = String(ev?.download_url ?? '').trim();
+  return /^\/api\/v1\/returns\/evidences\/[0-9]+$/.test(raw) ? raw.replace('/api/v1','') : null;
+}
 function returnCard(r){
   const estado=r.estado||'solicitada';
   const id=r.id;
@@ -352,7 +361,7 @@ window.reviewReturn = async function(id) {
   const items = Array.isArray(ret.items) ? ret.items : [];
   const evidencias = Array.isArray(ret.evidencias) ? ret.evidencias : [];
   const itemsHtml = items.length ? `<ul>${items.map(it=>`<li>${esc(it.producto_nombre||'Producto')} · Cantidad: ${esc(it.cantidad??'')} · Precio unitario: ${money(it.precio_unitario||0)} · Subtotal: ${money(it.subtotal||0)}</li>`).join('')}</ul>` : '<p class="cc-muted">Sin productos asociados.</p>';
-  const evidenciasHtml = evidencias.length ? `<ul>${evidencias.map(ev=>{ const url=safeEvidenceUrl(ev.url_archivo); const label=esc(ev.nombre_original||'Evidencia'); return url ? `<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a></li>` : `<li>${label} (enlace no disponible)</li>`; }).join('')}</ul>` : '<p class="cc-muted">Sin evidencia adjunta.</p>';
+  const evidenciasHtml = evidencias.length ? `<ul>${evidencias.map(ev=>{ const path=safeEvidencePath(ev); const label=esc(ev.nombre_original||'Evidencia'); return path ? `<li><button type="button" class="underline text-[#2276ff]" data-admin-evidence="${esc(path)}" data-admin-evidence-name="${label}">${label}</button></li>` : `<li>${label}</li>`; }).join('')}</ul>` : '<p class="cc-muted">Sin evidencia adjunta.</p>';
   const estado = ret.estado||'solicitada';
   const stateOptions = RF212_ADMIN_STATES.map(s=>`<option value="${esc(s)}">${esc(returnStatusLabel(s))}</option>`).join('');
   let html = `<section class="cc-card">
@@ -892,3 +901,26 @@ window.submitResolveDeleteRequest = async function(id, estado) {
 function bindActions(){ document.addEventListener('click',async e=>{ const b=e.target.closest('button'); if(!b) return; try{ if(b.dataset.userStatus){ await patchSafe(`/admin/users/${b.dataset.userStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.storeAction){ await patchSafe(`/stores/${b.dataset.storeAction}/${b.dataset.action}`,{}); b.textContent='Actualizado'; return; } if(b.dataset.productVisibility){ await patchSafe(`/products/${b.dataset.productVisibility}/visibility`,{estado:b.dataset.nextStatus}); b.textContent='Actualizado'; return; } if(b.dataset.productEdit){ openProductEditPanel(b.dataset.productEdit); return; } if(b.dataset.productDelete){ await delSafe(`/products/${b.dataset.productDelete}`); b.closest('tr')?.remove(); return; } if(b.dataset.productReport){ await patchSafe(`/admin/reports/products/${b.dataset.productReport}`,{estado:b.dataset.reportStatus,respuesta_admin:'Revisado desde panel web.'}); b.textContent='Reporte actualizado'; return; } if(b.dataset.commissionStatus){ await patchSafe(`/admin/commissions/${b.dataset.commissionStatus}/status`,{estado:b.dataset.nextStatus}); b.textContent='Comisión actualizada'; return; } if(b.dataset.notificationRead){ await patchSafe(`/notifications/${b.dataset.notificationRead}/read`,{}); b.textContent='Leída'; return; } if(b.dataset.notificationDelete){ await delSafe(`/notifications/${b.dataset.notificationDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.hasAttribute('data-read-all')){ await patchSafe('/notifications/read-all',{}); b.textContent='Todas marcadas'; return; } if(b.dataset.categoryDelete){ await delSafe(`/categories/${b.dataset.categoryDelete}`); b.closest('.cc-card')?.remove(); return; } if(b.dataset.categoryEdit){ b.textContent='Edición preparada'; return; } if(b.dataset.reviewDeleteRequest){ window.reviewDeleteRequest(b.dataset.reviewDeleteRequest); return; } if(b.dataset.reviewReturn){ window.reviewReturn(b.dataset.reviewReturn); return; } if(b.dataset.reviewModerate){ await patchSafe(`/admin/reviews/${b.dataset.reviewModerate}/moderate`,{estado:b.dataset.reviewModerateState}); await reviewsPage(); return; } if(b.dataset.visualAction){ b.textContent=b.dataset.visualAction; return; } }catch(error){ b.textContent='Error API'; console.warn(error.message); } }); }
 async function init(){ if(!adminPages.has(page)) return; const user=await adminSession(); if(!user) return; bindGlobalAdminSearch(); bindActions(); if(page==='admin.html') await dashboard(user); if(page==='admin-usuarios.html') await usersPage(); if(page==='admin-tiendas.html') await storesPage(); if(page==='admin-productos.html') await productsPage(); if(page==='admin-categorias.html') await categoriesPage(); if(page==='admin-pedidos.html') await ordersPage(); if(page==='admin-pagos.html') await paymentsPage(); if(page==='admin-envios.html') await shipmentsPage(); if(page==='admin-devoluciones.html') await returnsPage(); if(page==='admin-resenas.html') await reviewsPage(); if(page==='admin-comisiones.html') await commissionsPage(); if(page==='admin-notificaciones.html') await notificationsPage(); if(page==='admin-logs.html') await logsPage(); if(page==='admin-reportes.html') await reportsPage(); }
 init();
+
+/* RNF-006: descarga autenticada de la evidencia, solo al pulsarla. No se
+   precarga ninguna: una devolucion puede traer hasta 5 imagenes. */
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest?.('[data-admin-evidence]');
+  if (!btn) return;
+  const etiqueta = btn.textContent;
+  btn.textContent = 'Descargando...';
+  let url = null;
+  try {
+    const blob = await api.blob(btn.getAttribute('data-admin-evidence'));
+    url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = btn.getAttribute('data-admin-evidence-name') || 'evidencia';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (error) {
+    btn.insertAdjacentHTML('afterend', ' <small class="text-red-500">No fue posible abrir la evidencia.</small>');
+  } finally {
+    if (url) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (x) {} }, 60000);
+    btn.textContent = etiqueta;
+  }
+});

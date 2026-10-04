@@ -95,8 +95,35 @@ async function request(path, options={}){
   return data || { ok:true, data:null };
 }
 
+/* RNF-006: descarga binaria autenticada. Los adjuntos de chat y las evidencias
+   de devolucion ya no se sirven por /uploads, asi que un <img src> o un <a href>
+   directo no sirve: el navegador no adjunta la cabecera Authorization. Esta
+   operacion la adjunta explicitamente y devuelve un Blob.
+   Conserva las mismas garantias que request(): valida el origen de destino
+   contra la allowlist y NO pone el token en la URL. Un error se sigue leyendo
+   como JSON para conservar el mensaje del backend. */
+async function blob(path, options={}){
+  const urlObj = path.startsWith('http') ? new URL(path) : new URL(`${API_BASE_URL}${path}`, window.location.origin);
+  if (urlObj.origin !== new URL(API_ORIGIN).origin) throw new Error('Destino de API no autorizado.');
+  let res;
+  try{
+    res=await fetch(urlObj.toString(), { ...options, method:'GET', headers:{ ...authHeaders(), ...(options.headers||{}) } });
+  }catch(error){
+    const e=new Error('No hay conexión con la API de CommerCity.');
+    e.cause=error; e.isNetworkError=true; throw e;
+  }
+  if(!res.ok){
+    let data=null;
+    try{ data=JSON.parse(await res.text()); }catch(error){ /* el error no siempre es JSON */ }
+    const e=new Error(normalizeError(data,res.status));
+    e.status=res.status; e.data=data; throw e;
+  }
+  return res.blob();
+}
+
 export const api={
   request,
+  blob,
   get:(p, options={})=>request(p,{...options,method:'GET'}),
   post:(p,b, options={})=>request(p,{...options,method:'POST',body:b}),
   put:(p,b, options={})=>request(p,{...options,method:'PUT',body:b}),
