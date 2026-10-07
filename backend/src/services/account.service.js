@@ -179,6 +179,16 @@ async function getDeleteRequestDetail(userId) {
     can_approve: pending.total === 0
   };
 }
+/* RNF-009: respuesta_admin es texto libre y puede contener el nombre o el
+   correo del usuario. Al APROBAR sobrevivia en tres sitios que el saneamiento
+   por usuario_id nunca alcanzaba: la columna de usuarios, el mensaje de la
+   notificacion -- que se crea DESPUES de anonimizar -- y el detalle del log
+   cuenta_anonimizada, cuyo actor es el ADMINISTRADOR y no el usuario
+   anonimizado. Al aprobar se sustituye por un texto generico en los tres; la
+   trazabilidad queda en el actor, la accion, la entidad y la fecha.
+   Al RECHAZAR no se cambia nada: no hay anonimizacion y el usuario necesita
+   conocer la explicacion. */
+const RESPUESTA_APROBACION_GENERICA = 'Solicitud de eliminación aprobada.';
 async function resolveDeleteRequest(adminId, userId, { estado, respuesta_admin }, meta = {}) {
   if (!['aprobada','rechazada'].includes(estado)) throw err('Estado no permitido.', 400);
   const fotosEnCuarentena = [];
@@ -209,12 +219,12 @@ async function resolveDeleteRequest(adminId, userId, { estado, respuesta_admin }
         const ticket = quarantineProfilePhoto(url);
         if (ticket) fotosEnCuarentena.push(ticket);
       }
-      await anonymizeAccount(userId, respuesta_admin, conn);
+      await anonymizeAccount(userId, RESPUESTA_APROBACION_GENERICA, conn);
     } else {
       await conn.query("UPDATE usuarios SET solicitud_eliminacion_estado='rechazada', solicitud_eliminacion_respuesta_admin=? WHERE id=?", [respuesta_admin || null, userId]);
     }
-    await notificationService.create(conn, userId, { tipo:'solicitud_eliminacion_resuelta', titulo: estado === 'aprobada' ? 'Eliminación aprobada' : 'Eliminación rechazada', mensaje: respuesta_admin || 'Tu solicitud de eliminación fue revisada.', entidad_tipo:'usuario', entidad_id:userId });
-    await logService.log(conn, { usuario_id:adminId, accion: estado === 'aprobada' ? 'cuenta_anonimizada' : 'solicitud_eliminacion_rechazada', entidad:'usuario', entidad_id:userId, detalle:{ estado, respuesta_admin }, ip:meta.ip });
+    await notificationService.create(conn, userId, { tipo:'solicitud_eliminacion_resuelta', titulo: estado === 'aprobada' ? 'Eliminación aprobada' : 'Eliminación rechazada', mensaje: estado === 'aprobada' ? RESPUESTA_APROBACION_GENERICA : respuesta_admin || 'Tu solicitud de eliminación fue revisada.', entidad_tipo:'usuario', entidad_id:userId });
+    await logService.log(conn, { usuario_id:adminId, accion: estado === 'aprobada' ? 'cuenta_anonimizada' : 'solicitud_eliminacion_rechazada', entidad:'usuario', entidad_id:userId, detalle: estado === 'aprobada' ? { estado } : { estado, respuesta_admin }, ip:meta.ip });
     await conn.commit();
     // Commit confirmado: la foto ya no puede volver a publicarse.
     fotosEnCuarentena.forEach(discardQuarantined);

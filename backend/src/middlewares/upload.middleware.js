@@ -119,11 +119,28 @@ function quarantineProfilePhoto(storedUrl) {
   const origen = path.resolve(dir, nombre);
   const rel = path.relative(dir, origen);
   if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  // Una foto ya inexistente no debe impedir anonimizar la cuenta.
-  if (!fs.existsSync(origen)) return null;
+  /* Una foto ya inexistente no debe impedir anonimizar la cuenta. Se exige
+     ademas que sea un fichero, igual que resolveStoredFile: un directorio en
+     esa ruta se renombraria sin error y luego no se podria borrar, dejando
+     residuo en la cuarentena. */
+  let st = null;
+  try { st = fs.statSync(origen); } catch (e) { return null; }
+  if (!st.isFile()) return null;
   ensureDir(QUARANTINE_DIR);
   const destino = path.join(QUARANTINE_DIR, `${Date.now()}_${crypto.randomBytes(8).toString('hex')}_${nombre}`);
-  try { fs.renameSync(origen, destino); } catch (e) { return null; }
+  /* Fail-closed. Devolver null cuando el rename falla confundia dos casos muy
+     distintos: "la foto ya no existe", donde se puede continuar, y "la foto
+     existe pero no se pudo retirar", donde NO se puede. En el segundo caso la
+     transaccion seguia, confirmaba, y quedaba la cuenta anonimizada con su foto
+     todavia publica en /uploads/profiles. Ahora se propaga el fallo para que
+     resolveDeleteRequest revierta y la cuenta NO se anonimice. */
+  try { fs.renameSync(origen, destino); }
+  catch (e) {
+    const error = new Error('No fue posible retirar la foto de perfil antes de anonimizar.');
+    error.statusCode = 500;
+    error.cause = e;
+    throw error;
+  }
   return { origen, destino };
 }
 function discardQuarantined(ticket) {

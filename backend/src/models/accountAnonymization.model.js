@@ -117,6 +117,21 @@ async function anonymizeAccount(userId, respuesta_admin, conn) {
         AND JSON_CONTAINS_PATH(detalle, 'one', '$.correo')`,
     [userId]
   );
+
+  /* El motivo de la solicitud de eliminacion es texto libre que escribe el
+     propio usuario, y es justo el sitio donde alguien pone "me llamo X, mi
+     correo es Y". Una vez aprobada la eliminacion deja de aportar valor de
+     auditoria: la evidencia historica la dan usuario_id, accion, entidad,
+     entidad_id y created_at, que se conservan. */
+  await conn.query(
+    `UPDATE logs_acciones
+        SET detalle = JSON_REMOVE(detalle, '$.motivo')
+      WHERE usuario_id = ?
+        AND accion = 'solicitud_eliminacion_enviada'
+        AND detalle IS NOT NULL
+        AND JSON_CONTAINS_PATH(detalle, 'one', '$.motivo')`,
+    [userId]
+  );
 }
 
 module.exports = { anonymizeAccount };
