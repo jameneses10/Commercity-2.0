@@ -27,13 +27,31 @@ async function getOrderForUser(id,user){
 }
 async function myOrders(user){return orderModel.listBuyer(user.id)}
 async function sellerOrders(user){return orderModel.listSeller(user.id)}
+/* RNF-007: la paginacion llegaba al modelo como CADENA y reventaba la consulta.
+   adminOrdersValidator declara query('page').isInt().toInt() y lo mismo para
+   limit, pero en Express 5 `req.query` es de solo lectura, asi que los
+   sanitizadores de express-validator sobre query NO persisten: el valor sigue
+   siendo "20" y la validacion pasa con cero errores. Fallo silencioso.
+   listAll hacia `offset=(page-1)*limit`, que resulta numero por la aritmetica,
+   y empujaba `limit` sin convertir a `LIMIT ?`; mysql2 lo escapaba como
+   LIMIT '20' y MySQL rechazaba la sentencia. Resultado medido: 500 en
+   GET /admin/orders siempre que la query incluyera limit.
+   La normalizacion va aqui y no en el modelo, que debe recibir los filtros ya
+   normalizados -- mismo criterio que product.service. Solo page y limit: los
+   identificadores viajan como parametros en comparaciones `= ?`, donde mysql2
+   los compara correctamente y no hay defecto observable. */
 async function adminOrders(filters={}){
- const {scope,tienda_id,comprador_id,vendedor_id,estado_pago,estado_envio,fecha}=filters;
+ const normalizados={
+  ...filters,
+  page: filters.page===undefined ? 1 : Number(filters.page),
+  limit: filters.limit===undefined ? 50 : Number(filters.limit),
+ };
+ const {scope,tienda_id,comprador_id,vendedor_id,estado_pago,estado_envio,fecha}=normalizados;
  const hasBusinessFilter=comprador_id!==undefined||vendedor_id!==undefined||estado_pago!==undefined||estado_envio!==undefined||fecha!==undefined;
  if(scope==='all'&&tienda_id!==undefined) throw err('No puede combinar Todas las tiendas con una tienda específica.',400);
  if(scope!=='all'&&tienda_id===undefined) throw err('Debe indicar una tienda específica o seleccionar Todas las tiendas.',400);
  if(scope==='all'&&!hasBusinessFilter) throw err('Seleccionar Todas las tiendas requiere aplicar al menos un filtro.',400);
- return orderModel.listAll(filters);
+ return orderModel.listAll(normalizados);
 }
 async function getComprobanteForUser(id,user){
  await getOrderForUser(id,user);
