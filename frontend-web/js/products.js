@@ -128,20 +128,144 @@ function renderNoResults(box, filters){
   bindClearFilters();
 }
 
-function renderCatalog(){
-  const box=document.querySelector('[data-products]');
-  if(!box || !document.querySelector('[data-product-filters]')) return;
-  const filters=currentFilters();
-  const filtered = sortProducts(catalogProducts.filter(p=>matchesQuery(p, filters.q) && matchesCategory(p, filters.categoria)), filters.orden);
-  if(!filtered.length){ renderNoResults(box, filters); return; }
-  box.innerHTML = filtered.map(productCard).join('');
+/* RNF-013: carga progresiva del catalogo.
+   Antes solo se pedia /products?page=1 y el filtrado y la ordenacion se hacian
+   en memoria sobre esa unica pagina. Medido en navegador con 15.000 productos:
+   16 tarjetas, cero peticiones nuevas tras seis scrolls al fondo, y buscar un
+   producto que SI existe en la API devolvia "sin resultados" sin emitir ninguna
+   peticion. El 99,9% del catalogo era inalcanzable.
+
+   Ahora los filtros se envian al backend y las paginas se van anexando. Cada
+   cambio de busqueda, categoria u orden abre una GENERACION nueva: las
+   respuestas de generaciones anteriores se descartan, de modo que una consulta
+   lenta no puede sobrescribir el resultado de otra posterior. */
+const CATALOGO_LIMIT = 16;
+/* El select de la interfaz usa otros valores que el validador del backend, que
+   los acota con isIn(): enviarlos sin traducir devuelve 400. Verificado. */
+const ORDEN_API = { 'recent': 'newest', 'price-asc': 'price_asc', 'price-desc': 'price_desc', 'rating-desc': 'rating_desc' };
+const catalogo = { page: 0, pages: null, total: null, gen: 0, cargando: false, fin: false, ids: new Set() };
+let catalogoObserver = null;
+let debounceBusqueda = null;
+
+function esPaginaDeCatalogo(){ return !!document.querySelector('[data-product-filters]'); }
+
+function queryCatalogo(filters, page){
+  const qs = new URLSearchParams();
+  qs.set('page', String(page));
+  qs.set('limit', String(CATALOGO_LIMIT));
+  if(filters.q) qs.set('q', filters.q);
+  if(filters.categoria) qs.set('category_id', String(filters.categoria));
+  qs.set('sort', ORDEN_API[filters.orden] || 'newest');
+  return '/products?' + qs.toString();
+}
+
+function sentinel(){
+  const box = document.querySelector('[data-products]');
+  if(!box) return null;
+  let el = document.querySelector('[data-catalog-sentinel]');
+  if(!el){
+    el = document.createElement('div');
+    el.setAttribute('data-catalog-sentinel', '');
+    el.className = 'cc-muted text-center py-4 text-sm';
+  }
+  if(el.previousElementSibling !== box) box.insertAdjacentElement('afterend', el);
+  return el;
+}
+function estadoSentinel(texto){ const el = sentinel(); if(el) el.textContent = texto || ''; }
+
+function pintarPagina(items, anexar){
+  const box = document.querySelector('[data-products]');
+  if(!box) return;
+  const html = items.map(productCard).join('');
+  if(anexar) box.insertAdjacentHTML('beforeend', html); else box.innerHTML = html;
   syncFavoriteButtons();
   syncProductCartIcons();
   const summary = document.querySelector('[data-filter-summary]');
   if(summary){
-    const origin=usingProductFallback ? 'vista visual de respaldo' : 'API real';
-    summary.textContent = `${filtered.length} producto${filtered.length===1?'':'s'} visible${filtered.length===1?'':'s'} desde ${origin}.`;
+    const n = catalogo.ids.size;
+    const total = catalogo.total === null ? n : catalogo.total;
+    summary.textContent = n + ' de ' + total + ' producto' + (total === 1 ? '' : 's') + ' desde la API real.';
   }
+}
+
+/* Pide una pagina. `gen` identifica la consulta vigente: si cambia mientras la
+   peticion esta en vuelo, la respuesta se descarta. */
+async function cargarPaginaCatalogo(gen, opciones){
+  const anexar = !!(opciones && opciones.anexar);
+  if(catalogo.cargando || catalogo.fin) return;
+  if(gen !== catalogo.gen) return;
+  catalogo.cargando = true;
+  const page = catalogo.page + 1;
+  if(catalogo.pages !== null && page > catalogo.pages){ catalogo.fin = true; catalogo.cargando = false; estadoSentinel(''); return; }
+  estadoSentinel(anexar ? 'Cargando más productos…' : 'Cargando productos…');
+  try {
+    const filters = currentFilters();
+    const data = await api.get(queryCatalogo(filters, page));
+    if(gen !== catalogo.gen) return;                       // llego tarde: se ignora
+    const list = normalizeList(data, 'products');
+    const pag = (data && data.data && data.data.pagination) || {};
+    catalogo.page = page;
+    catalogo.pages = Number(pag.pages === undefined ? (catalogo.pages || 0) : pag.pages) || 0;
+    catalogo.total = Number(pag.total === undefined ? (catalogo.total === null ? list.length : catalogo.total) : pag.total);
+    // Deduplicar por id como defensa adicional al desempate del backend.
+    const nuevos = list.filter(function(p){ const id = String(productId(p)); if(catalogo.ids.has(id)) return false; catalogo.ids.add(id); return true; });
+    catalogProducts = anexar ? catalogProducts.concat(nuevos) : nuevos;
+    if(!catalogProducts.length){ renderNoResults(document.querySelector('[data-products]'), filters); estadoSentinel(''); catalogo.fin = true; return; }
+    pintarPagina(nuevos, anexar);
+    if(catalogo.page >= catalogo.pages || !list.length){ catalogo.fin = true; estadoSentinel('No hay más productos.'); }
+    else estadoSentinel('');
+  } catch(error){
+    if(gen !== catalogo.gen) return;
+    /* Si falla una pagina POSTERIOR se conserva lo ya renderizado: sustituirlo
+       por el respaldo visual perderia productos reales que el usuario ya ve. */
+    if(anexar) estadoSentinel('No fue posible cargar más productos. Desplázate para reintentar.');
+    else throw error;
+  } finally {
+    if(gen === catalogo.gen) catalogo.cargando = false;
+  }
+}
+
+function observarCatalogo(){
+  if(!esPaginaDeCatalogo()) return;                        // nunca en el carrusel del home
+  const el = sentinel();
+  if(!el) return;
+  if(catalogoObserver) catalogoObserver.disconnect();
+  if(typeof IntersectionObserver !== 'function') return;
+  catalogoObserver = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting) cargarPaginaCatalogo(catalogo.gen, { anexar: true }); });
+  }, { rootMargin: '300px' });
+  catalogoObserver.observe(el);
+}
+
+/* Reinicia el catalogo: generacion nueva, pagina 1 y filtros al backend. */
+async function reiniciarCatalogo(){
+  catalogo.gen += 1;
+  catalogo.page = 0; catalogo.pages = null; catalogo.total = null;
+  catalogo.cargando = false; catalogo.fin = false; catalogo.ids = new Set();
+  catalogProducts = [];
+  await cargarPaginaCatalogo(catalogo.gen, { anexar: false });
+  observarCatalogo();
+}
+
+function renderCatalog(){
+  const box=document.querySelector('[data-products]');
+  if(!box || !document.querySelector('[data-product-filters]')) return;
+  /* RNF-013: ya NO se filtra ni se ordena en memoria. El backend entrega la
+     pagina ya filtrada y ordenada; aqui solo se pinta lo acumulado. El respaldo
+     visual conserva su filtrado local porque no proviene de la API. */
+  const filters=currentFilters();
+  if(usingProductFallback){
+    const filtered = sortProducts(catalogProducts.filter(p=>matchesQuery(p, filters.q) && matchesCategory(p, filters.categoria)), filters.orden);
+    if(!filtered.length){ renderNoResults(box, filters); return; }
+    box.innerHTML = filtered.map(productCard).join('');
+    syncFavoriteButtons();
+    syncProductCartIcons();
+    const summary = document.querySelector('[data-filter-summary]');
+    if(summary) summary.textContent = filtered.length + ' producto' + (filtered.length===1?'':'s') + ' visible' + (filtered.length===1?'':'s') + ' desde vista visual de respaldo.';
+    return;
+  }
+  if(!catalogProducts.length){ renderNoResults(box, filters); return; }
+  pintarPagina(catalogProducts, false);
 }
 
 function categoryName(category){
@@ -165,9 +289,17 @@ function bindCatalogFilters(){
   const form=document.querySelector('[data-product-filters]');
   if(!form || form.dataset.boundCatalog === 'true') return;
   form.dataset.boundCatalog='true';
-  form.addEventListener('submit', event=>{ event.preventDefault(); renderCatalog(); });
-  form.querySelectorAll('input,select').forEach(control=>control.addEventListener('change', renderCatalog));
-  form.querySelector('[data-product-search]')?.addEventListener('input', renderCatalog);
+  /* RNF-013: cualquier cambio de filtro abre una consulta nueva contra el
+     backend y reinicia la paginacion. La busqueda lleva debounce de 300 ms: una
+     peticion por tecla iria contra el "sin sobrecargar el servidor" del
+     requisito. Con el respaldo visual activo se mantiene el filtrado local. */
+  const alCambiar = function(){ if(usingProductFallback) renderCatalog(); else reiniciarCatalogo(); };
+  form.addEventListener('submit', event=>{ event.preventDefault(); alCambiar(); });
+  form.querySelectorAll('select').forEach(control=>control.addEventListener('change', alCambiar));
+  form.querySelector('[data-product-search]')?.addEventListener('input', function(){
+    clearTimeout(debounceBusqueda);
+    debounceBusqueda = setTimeout(alCambiar, 300);
+  });
   bindClearFilters();
 }
 
@@ -182,7 +314,11 @@ function bindClearFilters(){
       if(search) search.value='';
       if(category) category.value='';
       if(sort) sort.value='recent';
-      renderCatalog();
+      /* RNF-013: limpiar filtros tiene que volver a pedir el catalogo completo.
+         Repintar con renderCatalog() solo redibujaba lo ya acumulado -- medido:
+         tras buscar un producto, limpiar dejaba ese unico resultado en pantalla
+         y no emitia ninguna peticion. */
+      if(usingProductFallback) renderCatalog(); else reiniciarCatalogo();
     });
   });
 }
@@ -398,6 +534,22 @@ export async function loadProducts(limit = 8) {
   const box = document.querySelector('[data-products]');
   if (!box) return;
   box.innerHTML = '<div class="cc-card cc-loading-card">Cargando productos desde la API...</div>';
+  /* RNF-013: el catalogo sigue su propio camino progresivo, que ya pide la
+     pagina 1 con los filtros aplicados. Hacer antes la peticion generica de
+     abajo duplicaria la llamada. El carrusel del home conserva su camino. */
+  if (esPaginaDeCatalogo()) {
+    usingProductFallback = false;
+    setInitialFilters();
+    bindCatalogFilters();
+    try {
+      await reiniciarCatalogo();
+    } catch (error) {
+      usingProductFallback = true;
+      catalogProducts = fallbackProducts;
+      renderCatalog();
+    }
+    return;
+  }
   try {
     const data = await api.get(`/products?page=1&limit=${limit}`);
     const list = normalizeList(data, 'products');
@@ -407,9 +559,7 @@ export async function loadProducts(limit = 8) {
       box.innerHTML = '<section class="cc-card cc-empty-state"><img class="cc-icon-lg" src="assets/icons/cc-product-card.svg" alt=""><h2>No hay productos disponibles.</h2><p class="cc-muted">La API respondió correctamente, pero no devolvió productos activos.</p></section>';
       return;
     }
-    if(document.querySelector('[data-product-filters]')){
-      setInitialFilters(); bindCatalogFilters(); renderCatalog();
-    } else {
+    {
       const slidesHtml = catalogProducts.map(p => `<div class="swiper-slide h-auto">${productCard(p)}</div>`).join('') + `
         <div class="swiper-slide h-auto">
           <a href="productos.html" class="flex flex-col items-center justify-center h-full min-h-[320px] bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-orange-50 dark:hover:bg-slate-900 group transition-all duration-300 shadow-sm p-6 text-center">
@@ -429,9 +579,7 @@ export async function loadProducts(limit = 8) {
   } catch(error) {
     usingProductFallback = true;
     catalogProducts = fallbackProducts;
-    if(document.querySelector('[data-product-filters]')){
-      setInitialFilters(); bindCatalogFilters(); renderCatalog();
-    } else {
+    {
       const slidesHtml = fallbackProducts.map(p => `<div class="swiper-slide h-auto">${productCard(p)}</div>`).join('') + `
         <div class="swiper-slide h-auto">
           <a href="productos.html" class="flex flex-col items-center justify-center h-full min-h-[320px] bg-gray-50 dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-orange-50 dark:hover:bg-slate-900 group transition-all duration-300 shadow-sm p-6 text-center">

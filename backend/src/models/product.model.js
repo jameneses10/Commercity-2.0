@@ -78,7 +78,15 @@ function buildCatalogWhere(filters) {
   if (filters.max_price !== undefined) { where.push(`${PRICE_EXPR} <= ?`); values.push(filters.max_price); }
   return { where: where.join(' AND '), values };
 }
-function sortClause(sort) { switch (sort) { case 'price_asc': return 'precio_final ASC'; case 'price_desc': return 'precio_final DESC'; case 'rating_desc': return 'p.calificacion_promedio DESC'; case 'newest': default: return 'COALESCE(p.fecha_publicacion,p.created_at) DESC'; } }
+/* RNF-013: los cuatro ordenes desempatan por p.id DESC para que el orden sea
+   TOTAL y determinista. Sin el, dos productos con la misma fecha efectiva -- o
+   el mismo precio, o la misma calificacion -- pueden intercambiar posicion entre
+   peticiones y provocar que una fila aparezca dos veces o se salte al paginar.
+   Medido antes del cambio: con 200 productos empatados en la misma fecha el
+   orden resultaba estable, pero solo de hecho, porque MySQL recorria el indice y
+   dentro de claves iguales InnoDB devolvia por clave primaria. Eso no lo
+   garantiza la semantica SQL, y un scroll infinito depende de que lo este. */
+function sortClause(sort) { switch (sort) { case 'price_asc': return 'precio_final ASC, p.id DESC'; case 'price_desc': return 'precio_final DESC, p.id DESC'; case 'rating_desc': return 'p.calificacion_promedio DESC, p.id DESC'; case 'newest': default: return 'COALESCE(p.fecha_publicacion,p.created_at) DESC, p.id DESC'; } }
 async function listPublicProducts(filters) {
   const { where, values } = buildCatalogWhere(filters); const orderBy = sortClause(filters.sort);
   const [rows] = await pool.query(`SELECT ${PRODUCT_FIELDS}, t.nombre AS tienda_nombre, t.slug AS tienda_slug, c.nombre AS categoria_nombre, c.slug AS categoria_slug FROM productos p INNER JOIN tiendas t ON t.id = p.tienda_id INNER JOIN categorias c ON c.id = p.categoria_id WHERE ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [...values, filters.limit, filters.offset]);
