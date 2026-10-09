@@ -547,6 +547,17 @@ export async function loadProducts(limit = 8) {
       usingProductFallback = true;
       catalogProducts = fallbackProducts;
       renderCatalog();
+    } finally {
+      /* bindProductActions() vive en el finally del try de mas abajo, y este
+         return se lo saltaba: en productos.html el boton "Anadir al carrito" y
+         el corazon de favorito de las tarjetas quedaban sin manejador. Medido
+         en navegador: pulsarlos emitia 0 peticiones y no cambiaba nada, aunque
+         el filtro de busqueda si respondia y el mismo boton si funcionaba en
+         producto-detalle.html, donde esta llamada si se ejecuta. Se enlaza una
+         sola vez porque main.js invoca loadProducts una vez por pagina, y la
+         funcion no es idempotente: registra un listener en document por
+         llamada. */
+      bindProductActions();
     }
     return;
   }
