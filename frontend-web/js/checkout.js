@@ -74,20 +74,22 @@ export async function revalidateCheckout() {
     context.price_changes = [];
     hideCheckoutMessage();
     try {
-        const cartReq = await api.get('/cart');
-        const cartItems = cartReq.data?.items || [];
-        if(!cartItems.length) {
-            context.valid = false;
-            context.validation_message = 'El carrito no tiene productos para validar.';
-            showCheckoutMessage(context.validation_message);
-            return context;
-        }
-        const validateReq = await api.post('/cart/validate', { items: cartItems });
+        /* RNF-016: una sola peticion por ciclo. Antes se hacia GET /cart y
+           acto seguido POST /cart/validate devolviendo al servidor los items
+           que el mismo acababa de entregar; la validacion ya responde
+           valid_items, invalid_items, price_changes y total. */
+        const validateReq = await api.post('/cart/validate', {});
         const validation = validateReq.data;
         const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
         const priceChanges = Array.isArray(validation.price_changes) ? validation.price_changes : [];
 
         context.valid_items = validation.valid_items || [];
+        if(!context.valid_items.length && !invalidItems.length) {
+            context.valid = false;
+            context.validation_message = 'El carrito no tiene productos para validar.';
+            showCheckoutMessage(context.validation_message);
+            return context;
+        }
         context.price_changes = priceChanges;
         context.total = validation.total || 0;
         context.valid = (context.valid_items.length > 0 && invalidItems.length === 0 && priceChanges.length === 0 && context.direccion_id);
@@ -170,15 +172,10 @@ function updateAddressFields(id) {
 async function loadCart() {
     hideCheckoutMessage();
     try {
-        const cartReq = await api.get('/cart');
-        const cartItems = cartReq.data?.items || [];
-
-        if(!cartItems.length) {
-            renderEmptyCart();
-            return;
-        }
-
-        const validateReq = await api.post('/cart/validate', { items: cartItems });
+        /* RNF-016: igual que en revalidateCheckout, se elimina el GET /cart
+           previo. El carrito vacio se distingue de "todo invalido" por no
+           traer ni items validos ni invalidos. */
+        const validateReq = await api.post('/cart/validate', {});
         const validation = validateReq.data;
 
         context.valid_items = validation.valid_items || [];
@@ -187,6 +184,10 @@ async function loadCart() {
 
         const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
         const priceChanges = context.price_changes;
+        if(!context.valid_items.length && !invalidItems.length) {
+            renderEmptyCart();
+            return;
+        }
         if(context.valid_items.length === 0 || invalidItems.length > 0) {
             renderEmptyCart(true);
             if(invalidItems.length > 0 || priceChanges.length > 0) {

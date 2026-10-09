@@ -1,5 +1,5 @@
 import { api, token } from './api.js';
-import { productCard, money, showToast, setUiIcon, syncHeaderStatusIcons } from './ui.js';
+import { productCard, money, showToast, setUiIcon, syncHeaderCartIcon, currentCartState, rememberCartState, cartTotalFromItems } from './ui.js';
 import { UPLOADS_BASE_URL } from './config.js';
 import { chatStartButton, bindChatStart } from './chat-start.js'; // RF-287
 
@@ -326,8 +326,12 @@ function bindClearFilters(){
 export async function addCart(product){
   const id=String(product.id || product.producto_id || product.product_id || '');
   if(token()){
-    await api.post('/cart/items', { product_id:Number(id), cantidad:1 });
-    return { api:true };
+    /* RNF-016: el POST ya devuelve el carrito actualizado. Antes se descartaba
+       y se volvia a pedir con GET /cart. */
+    const data=await api.post('/cart/items', { product_id:Number(id), cantidad:1 });
+    const cart=data?.data || null;
+    rememberCartState(cart);
+    return { api:true, cart };
   }
   const key='cc_cart_local';
   const list=JSON.parse(localStorage.getItem(key) || '[]');
@@ -396,11 +400,14 @@ function localCartIds(){
   try{return new Set(JSON.parse(localStorage.getItem('cc_cart_local') || '[]').filter(item=>Number(item.cantidad || item.quantity || 0)>0).map(item=>String(item.id || item.producto_id || item.product_id)));}
   catch{return new Set();}
 }
+/* RNF-016: toma el carrito del estado compartido. Antes lanzaba su propio
+   GET /cart, que se sumaba al del shell en cada pagina y en cada pagina
+   anexada del scroll infinito. */
 async function cartProductIds(){
   if(token()){
     try{
-      const data=await api.get('/cart');
-      return new Set((data?.data?.items || data?.items || []).filter(item=>Number(item.cantidad || item.quantity || 0)>0).map(item=>String(item.producto_id || item.product_id || item.id)));
+      const cart=await currentCartState();
+      return new Set((cart?.items || []).filter(item=>Number(item.cantidad || item.quantity || 0)>0).map(item=>String(item.producto_id || item.product_id || item.id)));
     }catch{}
   }
   return localCartIds();
@@ -408,7 +415,12 @@ async function cartProductIds(){
 async function syncProductCartIcons(){
   const ids=await cartProductIds();
   document.querySelectorAll('[data-cart]').forEach(btn=>setProductCartButtonState(btn, ids.has(String(btn.dataset.cart))));
-  syncHeaderStatusIcons();
+  /* RNF-016: antes llamaba a syncHeaderStatusIcons(), que volvia a pedir
+     /cart y ademas /notifications/unread-count. Que aparezcan 16 productos
+     nuevos en pantalla no es motivo para reconsultar las notificaciones. El
+     badge se actualiza con el total que ya tenemos. */
+  const cart=token() ? await currentCartState().catch(()=>null) : null;
+  syncHeaderCartIcon(cart ? cartTotalFromItems(cart.items || []) : undefined);
   return ids;
 }
 function setFavoriteButtonState(btn, saved){
@@ -480,9 +492,12 @@ function bindProductActions(){
       const id=String(cartBtn.dataset.cart);
       const product=catalogProducts.find(item=>String(item.id || item.producto_id || item.product_id)===id) || { id, nombre:'Producto CommerCity', precio:0 };
       try{
-        await addCart(product);
+        const resultado=await addCart(product);
         setProductCartButtonState(cartBtn, true);
-        await syncHeaderStatusIcons();
+        /* RNF-016: el badge se pinta con el total que trae la propia respuesta
+           del POST. Antes esto disparaba GET /cart y unread-count. */
+        if(resultado && resultado.cart) syncHeaderCartIcon(cartTotalFromItems(resultado.cart.items || []));
+        else await syncHeaderCartIcon();
         showToast('Producto añadido al carrito');
       }catch(error){
         console.warn('No fue posible agregar al carrito.', error.message || error);
@@ -614,6 +629,10 @@ export async function loadProducts(limit = 8) {
 
 export async function loadCategories() {
   const box = document.querySelector('[data-categories]');
+  /* RNF-016: main.js llama a esta funcion en TODA pagina. Medido: terms.html
+     pagaba GET /categories sin usar nunca el resultado. Se corta antes de la
+     peticion si la pagina no tiene ni listado ni filtro de categorias. */
+  if(!box && !document.querySelector('[data-category-filter]')) return;
   try {
     const data = await api.get('/categories');
     const list = normalizeList(data, 'categories').filter(c=>categoryName(c).trim());

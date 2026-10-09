@@ -363,12 +363,44 @@ export function normalizeInterfaceIcons(root=document){
   }
 }
 function localCartItems(){ try { return JSON.parse(localStorage.getItem('cc_cart_local') || '[]'); } catch { return []; } }
-function cartTotalFromItems(items=[]){ return items.reduce((total,item)=>total + Number(item.cantidad || item.quantity || 0),0); }
+export function cartTotalFromItems(items=[]){ return items.reduce((total,item)=>total + Number(item.cantidad || item.quantity || 0),0); }
+
+/* RNF-016: estado del carrito compartido por todo el frontend.
+   Antes cada consumidor pedia /cart por su cuenta. Medido en navegador: la
+   carga de productos.html emitia 3 veces GET /cart, el checkout 2 veces por
+   dos cadenas de llamada distintas (mountShell y loadCart), y cada pagina
+   anexada del catalogo 2 mas.
+
+   Se guarda tanto el resultado como la PETICION EN VUELO. Lo segundo es lo
+   importante: mountShell() y los modulos arrancan casi a la vez, asi que sin
+   compartir la promesa seguirian saliendo dos peticiones aunque hubiera cache.
+   Quien recibe un carrito del servidor -- incluida la respuesta de una
+   mutacion -- lo deposita aqui con rememberCartState(). */
+let cartCache = null;
+let cartPromise = null;
+export async function currentCartState({force=false}={}){
+  if(!token()) return null;
+  if(force){ cartCache = null; cartPromise = null; }
+  if(cartCache) return cartCache;
+  if(cartPromise) return cartPromise;
+  cartPromise = api.get('/cart').then(data=>{
+    cartCache = data?.data || data || null;
+    cartPromise = null;
+    return cartCache;
+  }).catch(error=>{
+    cartPromise = null;
+    throw error;
+  });
+  return cartPromise;
+}
+export function rememberCartState(cart){ if(cart){ cartCache = cart; cartPromise = null; } }
+export function invalidateCartState(){ cartCache = null; cartPromise = null; }
+
 export async function currentCartTotal(){
   if(token()){
     try{
-      const data=await api.get('/cart');
-      return cartTotalFromItems(data?.data?.items || data?.items || []);
+      const cart=await currentCartState();
+      return cartTotalFromItems(cart?.items || []);
     }catch{}
   }
   return cartTotalFromItems(localCartItems());

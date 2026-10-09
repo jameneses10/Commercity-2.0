@@ -1,5 +1,5 @@
 import { api, token } from './api.js';
-import { showMessage, money, syncHeaderStatusIcons, escapeHtml as esc } from './ui.js';
+import { showMessage, money, syncHeaderCartIcon, currentCartState, rememberCartState, cartTotalFromItems, escapeHtml as esc } from './ui.js';
 
 let apiCart = null;
 const pendingCartItems = new Set();
@@ -93,12 +93,19 @@ function renderItems(items, fromApi=false){
 
   document.querySelectorAll('[data-cart-subtotal]').forEach(el => { el.textContent = money(subtotal); });
   document.querySelectorAll('[data-cart-total]').forEach(el => { el.textContent = money(subtotal); });
-  syncHeaderStatusIcons();
+  /* RNF-016: antes llamaba a syncHeaderStatusIcons(), que volvia a pedir /cart
+     y /notifications/unread-count cada vez que se repintaba el carrito. El
+     total de unidades ya esta en los items que acabamos de pintar. */
+  syncHeaderCartIcon(cartTotalFromItems(items));
 }
 
-async function loadApiCart({announce=true}={}){
-  apiCart = (await api.get('/cart')).data;
-  renderItems(apiCart.items || [], true);
+/* RNF-016: `cart` permite pintar con el carrito que YA devolvio una mutacion,
+   sin un GET posterior. `force` descarta el estado compartido cuando sabemos
+   que quedo obsoleto, por ejemplo tras detectar un cambio de precio. */
+async function loadApiCart({announce=true, cart=null, force=false}={}){
+  if(cart) rememberCartState(cart);
+  apiCart = cart || await currentCartState({force});
+  renderItems(apiCart?.items || [], true);
   if(announce) showMessage('#cartMsg', 'Carrito sincronizado con tu cuenta.', true);
 }
 function renderLocal(){ renderItems(localCart(), false); }
@@ -106,13 +113,20 @@ async function renderCart(){ if(token()){ try { await loadApiCart(); return; } c
 
 async function validateCart(){
   if (validatingCart) return;
-  const items = token() && apiCart
-    ? (apiCart.items || []).map(i => ({producto_id: i.producto_id, cantidad: i.cantidad}))
-    : localCart().map(i => ({producto_id: Number(i.id), cantidad: Number(i.cantidad || 1)}));
-  if(!items.length){ showMessage('#cartMsg', 'Agrega productos antes de validar el carrito.'); return; }
+  /* RNF-016: /cart/validate valida el carrito persistente del comprador, de
+     modo que ya no se le envian los items. Sin sesion el endpoint responde 401
+     (authRequired + requireRole('comprador')), asi que no se emite la peticion:
+     se resuelve en local. */
+  if(!token()){
+    showMessage('#cartMsg', localCart().length
+      ? 'Inicia sesión para validar el carrito con el servidor.'
+      : 'Agrega productos antes de validar el carrito.');
+    return;
+  }
+  if(!(apiCart?.items || []).length){ showMessage('#cartMsg', 'Agrega productos antes de validar el carrito.'); return; }
   validatingCart = true;
   try {
-    const validation = (await api.post('/cart/validate', {items})).data || {};
+    const validation = (await api.post('/cart/validate', {})).data || {};
     const invalidItems = Array.isArray(validation.invalid_items) ? validation.invalid_items : [];
     const priceChanges = Array.isArray(validation.price_changes) ? validation.price_changes : [];
     const issues = [...invalidItems, ...priceChanges];
@@ -121,7 +135,7 @@ async function validateCart(){
       showMessage('#cartMsg', message);
       if(token()) {
         try {
-          await loadApiCart({announce:false});
+          await loadApiCart({announce:false, force:true});
           showMessage('#cartMsg', message);
         } catch(refreshError) {
           showMessage('#cartMsg', `${message} ${refreshError.message || 'No fue posible actualizar los valores del carrito.'}`);
@@ -142,7 +156,7 @@ async function removeItem(id){
   if (pendingCartItems.has(safeId)) return;
   pendingCartItems.add(safeId);
   try {
-    if(token()){ await api.delete(`/cart/items/${safeId}`); await loadApiCart(); return; }
+    if(token()){ const respuesta=await api.delete(`/cart/items/${safeId}`); await loadApiCart({cart:respuesta?.data || null}); return; }
     const list = localCart().filter(item => String(item.id) !== safeId); saveCart(list); renderLocal();
   } finally {
     pendingCartItems.delete(safeId);
@@ -157,7 +171,7 @@ async function changeQty(id, delta){
     if(token()){
       const item = (apiCart?.items || []).find(i => String(i.id) === safeId); if(!item) return;
       const cantidad = Math.max(1, Number(item.cantidad || 1) + delta);
-      await api.patch(`/cart/items/${safeId}`, {cantidad}); await loadApiCart(); return;
+      const respuesta=await api.patch(`/cart/items/${safeId}`, {cantidad}); await loadApiCart({cart:respuesta?.data || null}); return;
     }
     const list = localCart(); const item = list.find(i => String(i.id) === safeId); if(!item) return;
     item.cantidad = Math.max(1, Number(item.cantidad || 1) + delta); saveCart(list); renderLocal();
@@ -170,7 +184,7 @@ async function clearCart(){
   if (clearingCart) return;
   clearingCart = true;
   try {
-    if(token()){ await api.delete('/cart'); await loadApiCart(); return; }
+    if(token()){ const respuesta=await api.delete('/cart'); await loadApiCart({cart:respuesta?.data || null}); return; }
     saveCart([]); renderLocal();
   } finally {
     clearingCart = false;

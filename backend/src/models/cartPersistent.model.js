@@ -46,9 +46,14 @@ async function findItemForUser(usuarioId, itemId, conn = pool) {
 async function getCart(usuarioId, conn = pool) {
   const cartId = await getActiveCartId(usuarioId, conn);
   const [items] = await conn.query(
+    /* RNF-016: se añaden los estados comerciales de tienda y categoría. Esta
+       consulta ya traía en lote todo lo que la validación necesita menos esos
+       dos campos; con ellos, validateCart() puede trabajar sobre el carrito
+       persistente y deja de hacer una consulta por producto. */
     `SELECT ci.id, ci.producto_id, ci.cantidad, ci.precio_unitario_snapshot,
             p.nombre, ${EFFECTIVE_PRICE_EXPR} AS precio, p.stock, p.estado, p.imagen_url,
-            p.tienda_id, t.nombre AS tienda_nombre, c.nombre AS categoria_nombre,
+            p.tienda_id, t.nombre AS tienda_nombre, t.estado AS tienda_estado,
+            c.nombre AS categoria_nombre, c.estado AS categoria_estado,
             ROUND(${EFFECTIVE_PRICE_EXPR} * ci.cantidad, 2) AS subtotal
        FROM carrito_items ci
        INNER JOIN productos p ON p.id = ci.producto_id
@@ -167,21 +172,6 @@ async function clearCart(usuarioId) {
   return getCart(usuarioId);
 }
 
-async function getPriceSnapshots(usuarioId, productIds, conn = pool) {
-  const ids = [...new Set(productIds.map(Number).filter(Number.isInteger))];
-  if (!ids.length) return new Map();
-  const placeholders = ids.map(() => '?').join(', ');
-  const [rows] = await conn.query(
-    `SELECT ci.producto_id, ci.precio_unitario_snapshot
-       FROM carrito_items ci
-       INNER JOIN carritos c ON c.id = ci.carrito_id
-      WHERE c.usuario_id = ? AND c.estado = 'activo'
-        AND ci.producto_id IN (${placeholders})`,
-    [usuarioId, ...ids]
-  );
-  return new Map(rows.map((row) => [Number(row.producto_id), row.precio_unitario_snapshot]));
-}
-
 async function advancePriceSnapshots(usuarioId, updates, conn = pool) {
   if (!updates.length) return 0;
   const byProduct = new Map(updates.map((update) => [Number(update.producto_id), Number(update.precio_actual)]));
@@ -207,6 +197,5 @@ module.exports = {
   updateItem,
   deleteItem,
   clearCart,
-  getPriceSnapshots,
   advancePriceSnapshots,
 };
