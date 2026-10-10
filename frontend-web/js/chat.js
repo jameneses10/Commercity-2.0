@@ -292,11 +292,75 @@ async function reportChatMessage(button){
    publicado pero no existia ningun control en la interfaz. El borrado es suave
    en el servidor (eliminado=TRUE, contenido=NULL): la fila del historial se
    conserva, por eso la fila se actualiza en el sitio en lugar de quitarla. */
+/* RNF-020: confirmacion personalizada para borrar un mensaje.
+
+   Era la unica llamada a un dialogo nativo que quedaba en todo el frontend
+   (window.alert y window.prompt ya estaban a cero). El modal sigue el patron
+   ya probado en carrito y privacidad: contenedor singleton con role=dialog,
+   aria-modal, overlay propio y cierre por Cancelar, Escape o backdrop.
+
+   Solo devuelve la decision del usuario: no conoce el id del mensaje ni llama
+   a la API, de modo que la mutacion sigue viviendo entera en
+   deleteChatMessage() y el borrado suave del servidor no cambia. */
+let deleteConfirmModal=null;
+let pendingDeleteConfirmation=null;
+let deleteConfirmTrigger=null;
+
+function cerrarConfirmacionBorrado(decision){
+ if(!deleteConfirmModal) return;
+ deleteConfirmModal.classList.add('hidden');
+ const resolver=pendingDeleteConfirmation;
+ const disparador=deleteConfirmTrigger;
+ pendingDeleteConfirmation=null;
+ deleteConfirmTrigger=null;
+ // El foco vuelve a donde estaba el usuario, no al principio del documento.
+ if(disparador && typeof disparador.focus==='function' && disparador.isConnected) disparador.focus();
+ if(resolver) resolver(Boolean(decision));
+}
+
+function crearConfirmacionBorrado(){
+ if(deleteConfirmModal) return deleteConfirmModal;
+ const caja=document.createElement('div');
+ caja.className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 hidden';
+ caja.setAttribute('role','dialog');
+ caja.setAttribute('aria-modal','true');
+ caja.setAttribute('aria-labelledby','chatDeleteTitle');
+ caja.setAttribute('aria-describedby','chatDeleteText');
+ caja.innerHTML='<div class="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-800">'
+  +'<h2 id="chatDeleteTitle" class="text-xl font-bold mb-4 text-slate-900 dark:text-white Poppins">Eliminar mensaje?</h2>'
+  +'<p id="chatDeleteText" class="text-sm text-slate-700 dark:text-slate-300 mb-6">Se eliminara el contenido de este mensaje y no se puede deshacer.</p>'
+  +'<div class="flex items-center gap-3 justify-end">'
+  +'<button type="button" class="cc-btn outline" data-chat-delete-cancel>Cancelar</button>'
+  +'<button type="button" class="cc-btn danger" data-chat-delete-confirm>Eliminar mensaje</button>'
+  +'</div></div>';
+ document.body.appendChild(caja);
+ caja.querySelector('[data-chat-delete-cancel]').addEventListener('click',()=>cerrarConfirmacionBorrado(false));
+ caja.querySelector('[data-chat-delete-confirm]').addEventListener('click',()=>cerrarConfirmacionBorrado(true));
+ caja.addEventListener('click',event=>{ if(event.target===caja) cerrarConfirmacionBorrado(false); });
+ document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape') return;
+  if(deleteConfirmModal && !deleteConfirmModal.classList.contains('hidden')) cerrarConfirmacionBorrado(false);
+ });
+ deleteConfirmModal=caja;
+ return caja;
+}
+
+function confirmDeleteChatMessage(button){
+ const caja=crearConfirmacionBorrado();
+ // Una confirmacion a la vez: si quedaba otra abierta, se resuelve como cancelada.
+ if(pendingDeleteConfirmation) cerrarConfirmacionBorrado(false);
+ deleteConfirmTrigger=button||null;
+ caja.classList.remove('hidden');
+ // Foco inicial en la accion segura.
+ caja.querySelector('[data-chat-delete-cancel]').focus();
+ return new Promise(resolve=>{ pendingDeleteConfirmation=resolve; });
+}
+
 async function deleteChatMessage(button){
  const id=button?.dataset?.chatDelete;
  // Mismo criterio que el reporte: solo un id devuelto por el endpoint real.
  if(!id || !realMessageIds.has(String(id))){ setChatState('Solo puedes eliminar mensajes cargados desde el servidor.'); return false; }
- if(!window.confirm('Se eliminara el contenido de este mensaje y no se puede deshacer. Continuar?')) return false;
+ if(!await confirmDeleteChatMessage(button)) return false;
  button.disabled=true;
  setChatState('Eliminando el mensaje...');
  try{
