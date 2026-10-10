@@ -122,13 +122,18 @@ Para primera versión móvil puede no ser prioritario. El panel administrador pu
 
 Debe respetar la guía visual:
 
-- Azul principal `#2563EB`.
-- Naranja acción `#F97316`.
-- Fondo general `#F8FAFC`.
+- Naranja principal `#fa8000`.
+- Azul secundario `#2276ff`.
+- Fondo general claro `#f4f7fa`.
 - Tarjetas blancas.
 - Bordes redondeados.
 - Sombras suaves.
 - Tipografía limpia.
+- La versión móvil deberá conservar la misma jerarquía de color de la web:
+  naranja para acciones primarias y azul como color secundario/acento.
+- El tema móvil deberá contemplar equivalente claro y oscuro de la identidad web.
+- Las tarjetas deberán mantener bordes redondeados y sombras suaves coherentes
+  con el sistema visual vigente de CommerCity.
 
 ## 9. Componentes móviles reutilizables
 
