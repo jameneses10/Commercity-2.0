@@ -59,7 +59,7 @@ document.addEventListener('change', async (e) => {
     // 1. Validar lÃƒÂ­mite estricto de 3MB
     if (file.size > 3 * 1024 * 1024) {
       const currentMB = (file.size / (1024 * 1024)).toFixed(2);
-      showMessage('#profileMsg', `La imagen excede el lÃƒÂ­mite mÃƒÂ¡ximo permitido de 3MB (TamaÃƒÂ±o actual: ${currentMB}MB). Elige una imagen mÃƒÂ¡s liviana.`);
+      showMessage('#profileMsg', `La imagen excede el límite máximo permitido de 3MB (Tamaño actual: ${currentMB}MB). Elige una imagen más liviana.`);
       e.target.value = '';
       return;
     }
@@ -132,7 +132,7 @@ export async function initProfile(){
   }
 
   if(!token()){
-    showMessage('#profileMsg','Inicia sesiÃƒÂ³n para ver tu perfil real.');
+    showMessage('#profileMsg','Inicia sesión para ver tu perfil real.');
     renderProfile(currentUser());
     return;
   }

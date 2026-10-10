@@ -38,9 +38,76 @@ export function authHeaders(){
   return jwt ? { Authorization: `Bearer ${jwt}` } : {};
 }
 
+/* RNF-024: los 19 controladores responden a un fallo de validación con un
+   `message` genérico ("Datos de entrada inválidos.") y el detalle útil en
+   `errors[]`. Dar prioridad a `message` escondía los 121 mensajes específicos
+   del backend, así que aquí se invierte el orden.
+   El detalle, en cambio, no siempre está listo para mostrarse: las reglas sin
+   `withMessage` dejan el "Invalid value" por defecto de express-validator, y
+   algunos mensajes empiezan por el nombre interno del campo (categoria_id,
+   page, items). Los mapas de abajo traducen SOLO esos casos; un mensaje ya
+   correcto como "El precio debe ser mayor que cero." pasa intacto. */
+const CAMPO_NEUTRO='Revisa el valor ingresado en este campo.';
+const CAMPOS={
+  correo:'El correo electrónico ingresado no es válido.',
+  telefono:'El teléfono ingresado no es válido.',
+  direccion:'La dirección ingresada no es válida.',
+  departamento:'El departamento ingresado no es válido.',
+  ciudad:'La ciudad ingresada no es válida.',
+  nombre:'El nombre ingresado no es válido.',
+  descripcion:'La descripción ingresada no es válida.',
+  precio:'El precio ingresado no es válido.',
+  stock:'El stock ingresado no es válido.',
+  password:'La contraseña ingresada no es válida.',
+  confirmPassword:'La confirmación de contraseña no es válida.',
+  fecha_nacimiento:'La fecha de nacimiento no es válida.',
+  producto_id:'El producto seleccionado no es válido.',
+  product_id:'El producto seleccionado no es válido.',
+  pedido_id:'El pedido seleccionado no es válido.',
+  direccion_id:'La dirección seleccionada no es válida.',
+  categoria_id:'La categoría seleccionada no es válida.',
+  tienda_id:'La tienda seleccionada no es válida.',
+  comprador_id:'El comprador seleccionado no es válido.',
+  vendedor_id:'El vendedor seleccionado no es válido.',
+  estrellas:'La calificación ingresada no es válida.',
+  page:'La página solicitada no es válida.',
+  limit:'La cantidad de resultados por página no es válida.',
+  items:'Debes incluir al menos un producto.',
+};
+/* Mensajes técnicos que llegan como `message` de nivel superior, sin
+   `errors[]`, porque los lanza un servicio en vez de un validador. Mapa
+   cerrado a propósito: no es un traductor general de errores de negocio. */
+const TECNICOS={
+  'product_id inválido.':'El producto seleccionado no es válido.',
+  'producto_id inválido.':'El producto seleccionado no es válido.',
+  'id inválido.':'El identificador solicitado no es válido.',
+};
+/* Solo se reescribe un mensaje cuando empieza por un nombre interno
+   reconocible: con guión bajo, o uno de los tres parámetros de listado. */
+function campoTecnico(token){
+  const interno=/_/.test(token)||token==='page'||token==='limit'||token==='items';
+  return interno ? CAMPOS[token] : null;
+}
+function friendlyValidationMessage(error){
+  const texto=String(error?.message ?? '').trim();
+  if(!texto) return '';
+  // "Invalid value" es el texto por defecto y no le dice nada al usuario.
+  if(/^invalid value$/i.test(texto)) return CAMPOS[error?.field] || CAMPO_NEUTRO;
+  // "categoria_id es obligatorio...", "page inválido.", "items debe tener
+  // productos.": se sustituye la frase COMPLETA, nunca la palabra sola,
+  // porque el artículo no concordaría ("La categoría es obligatorio").
+  return campoTecnico(texto.split(/[\s:]+/)[0]) || texto;
+}
 function normalizeError(data, status){
-  if(data?.message) return data.message;
-  if(Array.isArray(data?.errors) && data.errors[0]?.message) return data.errors[0].message;
+  const detalle=Array.isArray(data?.errors) ? data.errors.find((e)=>e?.message) : null;
+  if(detalle){
+    const amable=friendlyValidationMessage(detalle);
+    if(amable) return amable;
+  }
+  if(data?.message){
+    const texto=String(data.message).trim();
+    return TECNICOS[texto] || texto;
+  }
   if(status) return `Solicitud no completada (${status}).`;
   return 'No fue posible completar la solicitud.';
 }
