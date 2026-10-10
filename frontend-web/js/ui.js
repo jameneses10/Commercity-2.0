@@ -276,7 +276,7 @@ export function footer(){
       <!-- Columna 1: Identidad de marca -->
       <div class="cc-footer-col cc-footer-brand">
         <a href="index.html" class="cc-footer-logo-link" aria-label="CommerCity — Inicio">
-          <img src="assets/img/Logo - Commercity.webp" alt="Logo CommerCity" class="cc-footer-logo" width="48" height="48">
+          <img src="assets/img/Logo - Commercity.webp" alt="Logo CommerCity" class="cc-footer-logo" width="48" height="48" loading="lazy" decoding="async">
           <span class="cc-brand-word cc-footer-brand-word">
             <span class="cc-brand-commer">Commer</span><span class="cc-brand-city">City</span>
           </span>
