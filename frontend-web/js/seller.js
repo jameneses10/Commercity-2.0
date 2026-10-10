@@ -1,5 +1,5 @@
 import { api, token, updateStoredUser } from './api.js';
-import { money, showMessage } from './ui.js';
+import { money, showMessage, showToast } from './ui.js';
 import { exportSheetsToExcel, objectRows, tableRows } from './report-export.js';
 import { userReportSection, bindUserReports } from './user-report.js';
 import { UPLOADS_BASE_URL } from './config.js';
@@ -209,7 +209,7 @@ document.addEventListener('change', async (e) => {
       try {
         const res = await processImageFileToWebP(file, 5);
         pendingProductWebP = res.file;
-        showMessage('#productFormMsg', `Imagen "${file.name}" convertida a WebP con Ã©xito.`, true);
+        showMessage('#productFormMsg', `Imagen "${file.name}" convertida a WebP con éxito.`, true);
       } catch(err) {
         showMessage('#productFormMsg', err.message);
       }
@@ -617,6 +617,10 @@ function bindVisualActions(){
       try{
         await api.patch(`/shipments/${id}/status`,{estado:s.dataset.nextStatus});
         await shipmentsPage();
+        /* RNF-025: el exito era silencioso y solo el fallo mostraba texto. El
+           repintado cambia una etiqueta entre decenas de envios, asi que no
+           bastaba como confirmacion. El aviso va DESPUES del await. */
+        showToast('Estado del envío actualizado correctamente.', true);
       }catch(error){
         s.disabled=false;
         showMessage(`#shipmentMsg-${id}`,error.message || 'No fue posible actualizar el envío.');
@@ -635,6 +639,7 @@ function bindVisualActions(){
     try{
       await api.patch(`/shipments/${id}/dispatch`,{transportadora:String(body.transportadora || '').trim(),numero_guia:String(body.numero_guia || '').trim()});
       await shipmentsPage();
+      showToast('Envío preparado correctamente.', true);
     }catch(error){
       controls.forEach(control=>{control.disabled=false;});
       showMessage(`#shipmentMsg-${id}`,error.message || 'No fue posible preparar el envío.');
@@ -650,6 +655,10 @@ async function submitReturnAction(button, id, payload){
   try{
     await updateSellerReturn(id, payload);
     await returnsPage();
+    // El texto depende de la decision que acaba de confirmar el backend.
+    const decidida = payload.estado === 'aprobada' ? 'aprobada'
+      : payload.estado === 'rechazada' ? 'rechazada' : 'actualizada';
+    showToast(`Solicitud de devolución ${decidida} correctamente.`, true);
   }catch(error){
     controls.forEach(c=>{c.disabled=false;});
     showMessage(`#returnMsg-${id}`, error.message || 'No fue posible actualizar la solicitud.');
@@ -687,6 +696,7 @@ function bindReturnActions(container){
     try{
       await updateSellerReturn(id, { estado:'en_revision', respuesta_vendedor:text });
       await returnsPage();
+      showToast('Solicitud de información adicional enviada correctamente.', true);
     }catch(error){
       controls.forEach(c=>{c.disabled=false;});
       showMessage(`#returnMsg-${id}`, error.message || 'No fue posible enviar la solicitud de información.');

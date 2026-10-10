@@ -32,18 +32,11 @@ function initSellerFilters(){
   });
 }
 
-function initSellerProductForm(){
-  const form=document.querySelector('#sellerProductForm');
-  if(!form) return;
-  form.addEventListener('submit', event=>{
-    event.preventDefault();
-    const data=Object.fromEntries(new FormData(form));
-    if(!String(data.name||'').trim()){ showMessage('#productFormMsg','El nombre del producto es obligatorio.'); return; }
-    if(Number(data.price)<=0){ showMessage('#productFormMsg','El precio debe ser mayor a 0.'); return; }
-    if(Number(data.stock)<0){ showMessage('#productFormMsg','El stock no puede ser negativo.'); return; }
-    showMessage('#productFormMsg','Funcionalidad en preparación. Producto validado visualmente.',true);
-  });
-}
+/* RNF-025 (#58): aqui vivia initSellerProductForm(), un segundo listener de
+   submit sobre #sellerProductForm que pintaba un exito verde antes de que
+   seller.js supiera el resultado del POST. Medido: verde a los 6 ms, error
+   real a los 41 ms. Se retira para que seller.js sea el unico propietario
+   del envio; su validacion local vive ahora en el backend. */
 
 function initVisualForms(){
   document.querySelectorAll('[data-visual-form]').forEach(form=>{
@@ -58,5 +51,4 @@ function initVisualForms(){
 }
 
 initSellerFilters();
-initSellerProductForm();
 initVisualForms();
