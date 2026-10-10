@@ -249,10 +249,18 @@ export function initHomeCarousel(){
       dot.setAttribute('aria-selected',i===current?'true':'false');
     });
   };
+  /* RNF-021: con movimiento reducido no hay avance automatico. Medido antes:
+     con la preferencia activa el carrusel seguia cambiando de slide 3 veces
+     en 12 s. Los controles manuales ya llaman a restart(), asi que pulsar
+     Next bajo la preferencia cambia una vez y NO rearranca el temporizador. */
+  const motionPreference=window.matchMedia?.('(prefers-reduced-motion: reduce)');
   const restart=()=>{
-    if(timer) window.clearInterval(timer);
+    if(timer){ window.clearInterval(timer); timer=null; }
+    if(motionPreference?.matches) return;
     timer=window.setInterval(()=>show(current+1),5000);
   };
+  // Si el usuario activa la preferencia con la pestana abierta, se detiene.
+  motionPreference?.addEventListener?.('change',restart);
   prev?.addEventListener('click',()=>{show(current-1);restart();});
   next?.addEventListener('click',()=>{show(current+1);restart();});
   dots.forEach((dot,i)=>dot.addEventListener('click',()=>{show(i);restart();}));

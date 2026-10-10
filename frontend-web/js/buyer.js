@@ -250,7 +250,7 @@ async function initAddresses(){
     const main=event.target.closest('[data-main-address]');
     if(edit){
       const address=currentAddresses.find(a=>String(a.id ?? a.direccion_id)===String(edit.dataset.editAddress));
-      if(address){ enterAddressEditMode(address,form,submitBtn); form.scrollIntoView({behavior:'smooth',block:'start'}); }
+      if(address){ enterAddressEditMode(address,form,submitBtn); form.scrollIntoView({block:'start'}); }
       else{ showMessage('#addressMsg','No pudimos encontrar esa dirección para editar.'); }
       return;
     }

@@ -2638,5 +2638,24 @@ html.cc-theme-vt::view-transition-new(root) {
 /* C) Con movimiento reducido no se anima nada: el tema se aplica de golpe.
    ui.js ya evita iniciar la View Transition, y esto lo refuerza en CSS. */
 @media (prefers-reduced-motion: reduce) {
+  /* RNF-021: este bloque va DESPUES de html{scroll-behavior:smooth!important},
+     asi que es el unico punto desde el que se puede neutralizar. Medido antes
+     del cambio: con la preferencia activa, scrollIntoView seguia interpolando
+     20 posiciones intermedias, mientras un scroll instantaneo daba 1 sola.
+     scroll-behavior no es ni transicion ni animacion, por eso el bloque
+     antiguo de duraciones no lo alcanzaba. */
+  html { scroll-behavior: auto !important; }
+
+  /* Anular la animacion entera, no solo su duracion: las cuatro animaciones
+     infinitas del sistema (cc-shimmer, cc-timeline-pulse, cc-live-pulse y
+     cc-pulse-dot) conservaban animation-iteration-count:infinite y solo veian
+     reducido su animation-duration a .001ms. El contenido no desaparece:
+     animations.js ya deja los reveals en opacity:1 y transform:none cuando
+     detecta la preferencia. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: .001ms !important;
+  }
+
   html.cc-theme-vt::view-transition-new(root) { animation: none; }
 }

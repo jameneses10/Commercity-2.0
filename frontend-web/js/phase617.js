@@ -28,7 +28,7 @@ function initVisualForms(){
 
 function initScrollTargets(){
   document.querySelectorAll('[data-scroll-target]').forEach(btn=>{
-    btn.addEventListener('click',()=>document.getElementById(btn.dataset.scrollTarget)?.scrollIntoView({behavior:'smooth',block:'start'}));
+    btn.addEventListener('click',()=>document.getElementById(btn.dataset.scrollTarget)?.scrollIntoView({block:'start'}));
   });
 }
 
