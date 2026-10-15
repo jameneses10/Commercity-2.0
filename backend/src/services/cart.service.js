@@ -22,6 +22,13 @@ function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 async function validateCart(user){
  if(!user?.id) throw err('Usuario autenticado requerido para validar el carrito.',401);
  const {items}=await persistent.getCart(user.id);
+ /* #66: al pasar a leer el carrito persistente se perdio la guarda que antes
+    vivia en la primera linea de esta funcion, cuando los items llegaban por
+    parametro. Sin ella, un carrito vacio devolvia un resultado "valido" con
+    total 0 y createOrder creaba un pedido sin detalles que luego se podia
+    marcar como pagado. Medido: POST /orders 201 con total 0.00 y
+    POST /payments/sandbox 200 sobre un pedido de cero articulos. */
+ if(!items.length) throw err('El carrito está vacío. Agrega productos antes de continuar.',400);
  const valid_items=[]; const invalid_items=[]; const price_changes=[]; const snapshotUpdates=new Map();
  for(const item of items){
   const producto_id=Number(item.producto_id), cantidad=Number(item.cantidad);
