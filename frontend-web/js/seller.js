@@ -313,6 +313,24 @@ async function storePage(){
 async function productsPage(){ const store=await getStore(); const products=store.error?{error:store.error}:await getProducts(store); const m=main(); m.innerHTML=pageShell('Mis productos','cc-products-management.svg','Inventario','Inventario real de la tienda conectado al backend.','<a class="cc-btn" href="vendedor-producto-form.html">Nuevo producto</a>')+`${Array.isArray(products)?productsRatingSummarySection(products):''}<section class="cc-card mb-5"><div class="cc-module-filters" data-seller-filter-group="products"><button class="cc-filter-pill active" data-filter="all" type="button">Todos</button><button class="cc-filter-pill" data-filter="activo" type="button">Activos</button><button class="cc-filter-pill" data-filter="pausado" type="button">Pausados</button><button class="cc-filter-pill" data-filter="sin-stock" type="button">Sin stock</button><button class="cc-filter-pill" data-filter="reportado" type="button">Reportados</button></div><label class="cc-label mt-4">Buscar producto<input class="cc-input" data-seller-search="products" placeholder="Nombre, categoría o estado"></label></section><section class="cc-table-wrap"><table class="cc-table"><thead><tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Ventas</th><th>Calificación</th><th>Acciones</th></tr></thead><tbody>${Array.isArray(products)&&products.length?products.map(productRow).join(''):''}</tbody></table></section>${Array.isArray(products)&&products.length?'':empty('cc-products-management.svg','Sin productos reales visibles.',products.error?.message || 'Crea productos reales desde el formulario.')}`; bindFilters(m); }
 
 
+/* Puebla el selector de categorias con identificadores reales. Si la carga
+   falla o no hay categorias, deja una unica opcion vacia: se envia un valor
+   vacio que el backend rechaza, nunca un identificador inventado. El form
+   lleva novalidate, de modo que el required del select declara la intencion
+   pero quien decide sigue siendo el servidor. */
+async function poblarCategorias(form, seleccionada){
+  const sel = form?.categoria_id;
+  if(!sel) return;
+  const cats = await getCategories();
+  if(!cats.length){
+    sel.innerHTML = '<option value="">No hay categorías disponibles</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">Selecciona una categoría</option>' +
+    cats.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+  if(seleccionada != null && seleccionada !== '') sel.value = String(seleccionada);
+}
+
 async function productFormPage(){
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
@@ -328,7 +346,8 @@ async function productFormPage(){
           if(form.descripcion) form.descripcion.value = prod.descripcion || prod.description || '';
           if(form.precio) form.precio.value = prod.precio || prod.price || '';
           if(form.stock) form.stock.value = prod.stock ?? '';
-          if(form.categoria) form.categoria.value = prod.categoria || prod.category || '';
+          await poblarCategorias(form, prod.categoria_id);
+          if(form.estado) form.estado.value = prod.estado || 'activo';
         }
         const img = imgUrl(prod.imagen || prod.image_url || prod.images?.[0]);
         const uploadZoneIcon = document.getElementById('productUploadIcon') || document.querySelector('.cc-upload-zone img');
@@ -341,12 +360,25 @@ async function productFormPage(){
     }
   }
 
+  const formProducto = document.querySelector('#sellerProductForm');
+  if(formProducto && !id){
+    await poblarCategorias(formProducto);
+    /* En creacion el servicio deriva el estado del stock e ignora el campo
+       enviado: se desactiva para no ofrecer un control que no decide nada. */
+    if(formProducto.estado){
+      formProducto.estado.disabled = true;
+      formProducto.estado.closest('label')?.setAttribute('hidden','');
+    }
+  }
+
   document.querySelector('#sellerProductForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     if(pendingProductWebP){
-      fd.delete('imagen'); // Backend expects 'imagen' usually, let's make sure
-      fd.append('imagen', pendingProductWebP, pendingProductWebP.name);
+      /* La ruta declara productUpload.array('images', 6); con cualquier otra
+         clave multer responde 400 «Unexpected field». */
+      fd.delete('images');
+      fd.append('images', pendingProductWebP, pendingProductWebP.name);
     }
     try{
       const res = id ? await api.patch(`/products/${id}`, fd) : await api.post('/products', fd);
