@@ -102,9 +102,15 @@ describe('contrato del formulario de producto', () => {
 
 /* ──────────────────────── 2. COMPORTAMIENTO (ejecucion) ─────────────────── */
 
-const BD = 'cc_f00_test';
+/* Nombre exclusivo por ejecucion: nunca se reutiliza ni se borra una base que
+   ya existiera. Si por un choque astronomico el nombre estuviera ocupado,
+   CREATE falla y la prueba aborta, que es lo seguro. */
+const BD = 'cc_f00_test_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+
 let ctx = null;          // {srv, base, pool, tokenVendedor, tokenComprador, categoriaId}
 let motivoOmision = null;
+let cfgRaiz = null;      // credenciales, para poder limpiar aunque prepara() falle
+let bdCreada = false;    // se marca en cuanto la base existe, no al final
 
 async function prepara() {
   const BACK = path.join(RAIZ, 'backend');
@@ -118,21 +124,35 @@ async function prepara() {
     password: process.env.DB_PASSWORD,
     multipleStatements: true,
   };
+  cfgRaiz = cfg;
 
+  /* Guarda explicita: la base de ensayo jamas puede ser la operativa. */
+  const operativa = (process.env.DB_NAME || 'commercity_db').toLowerCase();
+  assert.notEqual(BD.toLowerCase(), operativa, 'la base de pruebas no puede ser la operativa');
+  assert.ok(BD.startsWith('cc_f00_test_'), 'nombre de base de pruebas inesperado: ' + BD);
+
+  /* finally en ambas conexiones: una conexion filtrada mantiene vivo el proceso
+     y un fallo de preparacion colgaria la ejecucion en lugar de terminar. */
   const raiz = await mysql.createConnection(cfg);
-  await raiz.query('DROP DATABASE IF EXISTS ' + BD);
-  await raiz.query('CREATE DATABASE ' + BD + ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
-  await raiz.end();
+  try {
+    await raiz.query('CREATE DATABASE ' + BD + ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    bdCreada = true;
+  } finally {
+    await raiz.end();
+  }
 
   const con = await mysql.createConnection({ ...cfg, database: BD });
-  for (const dir of ['migrations', 'seeders']) {
-    const d = path.join(BACK, 'database', dir);
-    if (!fs.existsSync(d)) continue;
-    for (const f of fs.readdirSync(d).filter((x) => x.endsWith('.sql')).sort()) {
-      await con.query(fs.readFileSync(path.join(d, f), 'utf8'));
+  try {
+    for (const dir of ['migrations', 'seeders']) {
+      const d = path.join(BACK, 'database', dir);
+      if (!fs.existsSync(d)) continue;
+      for (const f of fs.readdirSync(d).filter((x) => x.endsWith('.sql')).sort()) {
+        await con.query(fs.readFileSync(path.join(d, f), 'utf8'));
+      }
     }
+  } finally {
+    await con.end();
   }
-  await con.end();
 
   process.env.DB_NAME = BD;
   const { pool } = require(path.join(BACK, 'src', 'config', 'database'));
@@ -182,18 +202,41 @@ before(async () => {
   }
 });
 
+/* El desmontaje NO depende de que prepara() haya terminado: si fallo a mitad,
+   la base pudo quedar creada. Cada paso se intenta por separado y cualquier
+   fallo de limpieza se anuncia, nunca se traga en silencio. */
 after(async () => {
-  if (!ctx) return;
-  ctx.srv.close();
-  await ctx.pool.query('DROP DATABASE IF EXISTS ' + BD).catch(() => {});
-  await ctx.pool.end().catch(() => {});
-  /* Las subidas de prueba quedan en disco: se borran solo las creadas por esta
-     ejecucion, comparando con el listado tomado antes de empezar. */
-  try {
-    for (const f of fs.readdirSync(SUBIDAS)) {
-      if (!ctx.subidasPrevias.has(f)) fs.unlinkSync(path.join(SUBIDAS, f));
+  const avisos = [];
+
+  if (ctx) {
+    try { ctx.srv.close(); } catch (e) { avisos.push('no se pudo cerrar el servidor: ' + e.message); }
+    try { await ctx.pool.end(); } catch (e) { avisos.push('no se pudo cerrar el pool: ' + e.message); }
+  }
+
+  if (bdCreada && cfgRaiz) {
+    try {
+      const mysql = require('mysql2/promise');
+      const raiz = await mysql.createConnection(cfgRaiz);
+      await raiz.query('DROP DATABASE IF EXISTS ' + BD);
+      await raiz.end();
+    } catch (e) {
+      avisos.push('LA BASE ' + BD + ' NO SE PUDO ELIMINAR, borrela a mano: ' + e.message);
     }
-  } catch { /* la carpeta puede no existir si nada se subio */ }
+  }
+
+  /* Las subidas quedan en disco: se borran solo las creadas por esta ejecucion,
+     comparando con el listado tomado antes de empezar. */
+  if (ctx?.subidasPrevias) {
+    try {
+      for (const f of fs.readdirSync(SUBIDAS)) {
+        if (!ctx.subidasPrevias.has(f)) fs.unlinkSync(path.join(SUBIDAS, f));
+      }
+    } catch (e) {
+      if (e.code !== 'ENOENT') avisos.push('no se pudieron borrar las subidas de prueba: ' + e.message);
+    }
+  }
+
+  if (avisos.length) console.error('\nLIMPIEZA INCOMPLETA:\n  ' + avisos.join('\n  ') + '\n');
 });
 
 /* Un fallo de preparacion NO es evidencia del defecto: se distingue en voz alta. */
