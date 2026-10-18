@@ -40,17 +40,19 @@
 
         <label class="cc-label block">
           <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Nombre del producto *</span>
-          <input class="cc-input min-h-[44px] w-full" name="name" required placeholder="Ej: Morral urbano resistente al agua">
+          <input class="cc-input min-h-[44px] w-full" name="nombre" required placeholder="Ej: Morral urbano resistente al agua">
         </label>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label class="cc-label">
             <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">CategorÃ­a *</span>
-            <input class="cc-input min-h-[44px] w-full" name="category" required placeholder="Ej: Accesorios">
+            <select class="cc-select min-h-[44px] w-full" name="categoria_id" required>
+              <option value="">Cargando categorías…</option>
+            </select>
           </label>
           <label class="cc-label">
             <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Precio *</span>
-            <input class="cc-input min-h-[44px] w-full" name="price" type="number" min="1" required placeholder="Ej: 89900">
+            <input class="cc-input min-h-[44px] w-full" name="precio" type="number" min="1" required placeholder="Ej: 89900">
           </label>
           <label class="cc-label">
             <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Stock disponible *</span>
@@ -60,15 +62,15 @@
 
         <label class="cc-label block">
           <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">Estado de publicaciÃ³n</span>
-          <select class="cc-select min-h-[44px] w-full" name="status">
+          <select class="cc-select min-h-[44px] w-full" name="estado">
             <option value="activo">Activo (Visible en tienda)</option>
-            <option value="pausado">Pausado (Oculto)</option>
+            <option value="oculto">Pausado (Oculto)</option>
           </select>
         </label>
 
         <label class="cc-label block">
           <span class="text-sm font-medium text-slate-700 dark:text-slate-300 block mb-1">DescripciÃ³n detallada *</span>
-          <textarea class="cc-input cc-textarea w-full p-3 rounded-xl min-h-[100px]" name="description" required placeholder="Escribe las caracterÃ­sticas principales, materiales y especificaciones del producto..."></textarea>
+          <textarea class="cc-input cc-textarea w-full p-3 rounded-xl min-h-[100px]" name="descripcion" required placeholder="Escribe las caracterÃ­sticas principales, materiales y especificaciones del producto..."></textarea>
         </label>
 
         <div class="flex items-center gap-3 pt-4">
@@ -91,7 +93,7 @@
       <h2 class="text-xl font-bold text-slate-900 dark:text-white Poppins mb-4">ImÃ¡genes del producto</h2>
 
       <div class="cc-upload-zone p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center gap-3 bg-slate-50/50 dark:bg-slate-900/50 relative cursor-pointer group" title="Haz clic para seleccionar imÃ¡genes">
-        <input type="file" id="productImagesInput" accept="image/*" multiple class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-30">
+        <input type="file" id="productImagesInput" accept="image/*" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-30">
         <img id="productUploadIcon" class="cc-icon-lg w-12 h-12 text-[#2276ff] transition-transform group-hover:scale-105" src="assets/icons/cc-product-image-upload.svg" alt="">
         <strong class="text-sm font-bold text-slate-900 dark:text-white">Carga mÃºltiple de imÃ¡genes</strong>
         <span class="text-xs text-slate-500 dark:text-slate-400">MÃ¡ximo 5MB por archivo. Se convertirÃ¡ automÃ¡ticamente a formato WebP.</span>
