@@ -15,7 +15,9 @@
  *      y comprueba que el contrato aceptado persiste de verdad.
  *
  * Requisitos para la mitad de ejecucion: MySQL accesible con las credenciales
- * de backend/.env. Crea y destruye su propia base `cc_f00_test`; NUNCA toca
+ * de backend/.env. Crea y destruye una base propia con nombre exclusivo por
+ * ejecucion, `cc_f00_test_<marca>_<aleatorio>`, de modo que nunca borra una
+ * base preexistente ni colisiona con otra ejecucion; NUNCA toca
  * commercity_db. Si no puede prepararla, aborta con un mensaje explicito en
  * lugar de fallar como si el defecto se hubiera reproducido.
  *
@@ -111,10 +113,17 @@ let ctx = null;          // {srv, base, pool, tokenVendedor, tokenComprador, cat
 let motivoOmision = null;
 let cfgRaiz = null;      // credenciales, para poder limpiar aunque prepara() falle
 let bdCreada = false;    // se marca en cuanto la base existe, no al final
+let poolAbierto = null;  // referencias vivas desde que se crean, no desde ctx
+let srvAbierto = null;
+let subidasPrevias = null;
 
 async function prepara() {
   const BACK = path.join(RAIZ, 'backend');
   require('dotenv').config({ path: path.join(BACK, '.env') });
+
+  /* Fotografia de las subidas antes de tocar nada, para que el desmontaje sepa
+     que borrar aunque la preparacion falle en cualquier punto posterior. */
+  subidasPrevias = new Set(fs.existsSync(SUBIDAS) ? fs.readdirSync(SUBIDAS) : []);
 
   const mysql = require('mysql2/promise');
   const cfg = {
@@ -158,6 +167,10 @@ async function prepara() {
   const { pool } = require(path.join(BACK, 'src', 'config', 'database'));
   const { hashPassword } = require(path.join(BACK, 'src', 'utils', 'password'));
   const app = require(path.join(BACK, 'src', 'app'));
+  /* Se registran en cuanto existen, no al final: si la preparacion falla mas
+     adelante (por ejemplo en el login), el desmontaje debe poder cerrarlos
+     igualmente. Nada que haya que liberar depende de que ctx llegue a existir. */
+  poolAbierto = pool;
 
   const rol = async (n) => (await pool.query('SELECT id FROM roles WHERE nombre=? LIMIT 1', [n]))[0][0].id;
   const clave = await hashPassword('Prueba#2026');
@@ -172,6 +185,7 @@ async function prepara() {
   const [[cat]] = await pool.query('SELECT id FROM categorias LIMIT 1');
 
   const srv = app.listen(0);
+  srvAbierto = srv;
   await new Promise((r) => srv.once('listening', r));
   const base = 'http://127.0.0.1:' + srv.address().port + '/api/v1';
 
@@ -185,10 +199,8 @@ async function prepara() {
     return j.data.token;
   };
 
-  const subidasPrevias = new Set(fs.existsSync(SUBIDAS) ? fs.readdirSync(SUBIDAS) : []);
-
   ctx = {
-    srv, base, pool, categoriaId: cat.id, subidasPrevias,
+    srv, base, pool, categoriaId: cat.id,
     tokenVendedor: await entra('vendedor@f00.test'),
     tokenComprador: await entra('comprador@f00.test'),
   };
@@ -205,31 +217,38 @@ before(async () => {
 /* El desmontaje NO depende de que prepara() haya terminado: si fallo a mitad,
    la base pudo quedar creada. Cada paso se intenta por separado y cualquier
    fallo de limpieza se anuncia, nunca se traga en silencio. */
+/* El desmontaje NO depende de ctx: libera todo lo que llego a crearse, en
+   orden inverso, y cada paso por separado. Cualquier fallo de limpieza se
+   anuncia; ninguno se traga en silencio. */
 after(async () => {
   const avisos = [];
 
-  if (ctx) {
-    try { ctx.srv.close(); } catch (e) { avisos.push('no se pudo cerrar el servidor: ' + e.message); }
-    try { await ctx.pool.end(); } catch (e) { avisos.push('no se pudo cerrar el pool: ' + e.message); }
+  if (srvAbierto) {
+    try { srvAbierto.close(); } catch (e) { avisos.push('no se pudo cerrar el servidor: ' + e.message); }
+  }
+  if (poolAbierto) {
+    try { await poolAbierto.end(); } catch (e) { avisos.push('no se pudo cerrar el pool: ' + e.message); }
   }
 
   if (bdCreada && cfgRaiz) {
+    let raiz = null;
     try {
       const mysql = require('mysql2/promise');
-      const raiz = await mysql.createConnection(cfgRaiz);
+      raiz = await mysql.createConnection(cfgRaiz);
       await raiz.query('DROP DATABASE IF EXISTS ' + BD);
-      await raiz.end();
     } catch (e) {
       avisos.push('LA BASE ' + BD + ' NO SE PUDO ELIMINAR, borrela a mano: ' + e.message);
+    } finally {
+      if (raiz) { try { await raiz.end(); } catch (e) { avisos.push('no se pudo cerrar la conexion de limpieza: ' + e.message); } }
     }
   }
 
   /* Las subidas quedan en disco: se borran solo las creadas por esta ejecucion,
      comparando con el listado tomado antes de empezar. */
-  if (ctx?.subidasPrevias) {
+  if (subidasPrevias) {
     try {
       for (const f of fs.readdirSync(SUBIDAS)) {
-        if (!ctx.subidasPrevias.has(f)) fs.unlinkSync(path.join(SUBIDAS, f));
+        if (!subidasPrevias.has(f)) fs.unlinkSync(path.join(SUBIDAS, f));
       }
     } catch (e) {
       if (e.code !== 'ENOENT') avisos.push('no se pudieron borrar las subidas de prueba: ' + e.message);
