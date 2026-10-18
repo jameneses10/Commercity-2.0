@@ -37,3 +37,6 @@ Thumbs.db
 backend/uploads/**
 !backend/uploads/**/
 !backend/uploads/**/.gitkeep
+
+# Informe de pruebas generado por el runner
+backend/informe-pruebas.xml
