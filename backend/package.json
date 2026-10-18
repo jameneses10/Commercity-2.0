@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "db:migrate": "node scripts/dbMigrate.js",
-    "db:seed": "node scripts/dbSeed.js"
+    "db:seed": "node scripts/dbSeed.js",
+    "test": "node --test"
   },
   "keywords": [
     "commercity",
@@ -33,5 +34,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
