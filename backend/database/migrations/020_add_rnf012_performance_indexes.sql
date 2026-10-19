@@ -42,7 +42,43 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-SET @sql = (SELECT IF(COUNT(*) = 0, 'CREATE INDEX idx_productos_publicacion_efectiva ON productos ((COALESCE(fecha_publicacion, created_at)))', 'SELECT 1') FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos' AND INDEX_NAME = 'idx_productos_publicacion_efectiva');
+-- #102: el indice funcional sobre COALESCE(fecha_publicacion, created_at) se
+-- evalua ANTES de aplicarse el DEFAULT CURRENT_TIMESTAMP de created_at. Si la
+-- insercion omite las dos columnas temporales, la expresion produce una fecha
+-- cero y, con STRICT_TRANS_TABLES junto a NO_ZERO_DATE —el sql_mode por
+-- defecto de MySQL—, el INSERT muere con ERROR 3751. Medido: pasa a DATETIME
+-- created_at no lo arregla, y una columna generada falla con ERROR 1292
+-- 'Incorrect datetime value: 0000-00-00 00:00:00', que es la prueba directa.
+--
+-- Envolver la expresion en CAST(... AS DATETIME) la evita, y el optimizador
+-- sigue usando el indice para el ORDER BY real del catalogo: 0,4 ms frente a
+-- 18,7 ms con filesort sobre 30.000 filas, el mismo x46 que motivo crearlo.
+--
+-- Se conserva el nombre del indice y se decide por su EXPRESION real, no solo
+-- por su presencia, porque el migrador reejecuta todos los ficheros y no lleva
+-- historial: un DROP incondicional reconstruiria el indice en cada pasada.
+--   ausente            -> se crea corregido
+--   expresion antigua  -> se sustituye en una sola sentencia ALTER
+--   expresion corregida-> no se toca
+--   expresion ajena    -> se aborta sin borrar nada
+
+SET @expr_actual = (SELECT EXPRESSION FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos'
+    AND INDEX_NAME = 'idx_productos_publicacion_efectiva' LIMIT 1);
+
+SET @expr_vieja = 'coalesce(`fecha_publicacion`,`created_at`)';
+SET @expr_nueva = 'cast(coalesce(`fecha_publicacion`,`created_at`) as datetime)';
+
+SET @sql = CASE
+  WHEN @expr_actual IS NULL THEN
+    'CREATE INDEX idx_productos_publicacion_efectiva ON productos ((CAST(COALESCE(fecha_publicacion, created_at) AS DATETIME)))'
+  WHEN @expr_actual = @expr_vieja THEN
+    'ALTER TABLE productos DROP INDEX idx_productos_publicacion_efectiva, ADD INDEX idx_productos_publicacion_efectiva ((CAST(COALESCE(fecha_publicacion, created_at) AS DATETIME)))'
+  WHEN @expr_actual = @expr_nueva THEN
+    'SELECT 1'
+  ELSE
+    'SELECT `ABORTADO: idx_productos_publicacion_efectiva tiene una expresion no reconocida; revisela a mano antes de migrar`'
+END;
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
