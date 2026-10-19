@@ -1,0 +1,124 @@
+# Ejecuta la red de regresion de RNF-069 en cada propuesta hacia main y en
+# cada integracion a main. Hasta ahora la suite existia pero solo corria si
+# alguien se acordaba de lanzarla; esto es lo que faltaba para cerrar #97.
+#
+# El runner NO tiene acceso a la base operativa ni a ningun secreto del
+# proyecto: levanta su propio MySQL efimero y las suites crean dentro de el
+# sus bases `cc_t_*`, que ellas mismas destruyen.
+#
+# El exit code no basta como prueba: `node --test tests/` llego a devolver
+# "pass 0" sin descubrir nada. Por eso el job comprueba ademas que se
+# ejecutaron todos los ficheros que hay en disco, y que no queda ninguna base
+# temporal al terminar.
+
+name: Pruebas
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rnf-069:
+    name: Suite de regresion
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      mysql:
+        # 8.4 para igualar el entorno donde se valido la suite. Las migraciones
+        # usan CHECK y FULLTEXT sobre InnoDB, soportados desde 8.0.16.
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: pruebas_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -ppruebas_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      # Conjunto minimo medido: sin estas cinco la suite no arranca.
+      # JWT_SECRET es la unica que el codigo exige de forma explicita
+      # (requireEnv); las demas tienen valor por defecto, pero apuntarian al
+      # MySQL equivocado. Es un valor de usar y tirar, no un secreto.
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: pruebas_ci
+      JWT_SECRET: secreto_efimero_solo_para_ci
+      # 'test' evita que se imprima en el log el codigo de recuperacion que el
+      # servicio muestra en modo development (#17).
+      NODE_ENV: test
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Esperar a que MySQL acepte conexiones
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" --silent; then
+              echo "MySQL responde tras $i intento(s)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL no respondio a tiempo."
+          exit 1
+
+      - name: Ejecutar la suite
+        # Tres reporters en la misma ejecucion: 'spec' para leer el log,
+        # 'junit' para los fallos y los todo, y uno propio que declara que
+        # ficheros se ejecutaron. El atributo file= de junit no sirve para eso:
+        # existe en unas plataformas y versiones de Node y en otras no.
+        run: >-
+          npm test --
+          --test-reporter=spec --test-reporter-destination=stdout
+          --test-reporter=junit --test-reporter-destination=informe-pruebas.xml
+          --test-reporter=./tests/apoyo/reportero-ficheros.js --test-reporter-destination=ficheros.txt
+
+      - name: Comprobar que se descubrio y ejecuto todo
+        run: node tests/apoyo/verifica-ci.js informe-pruebas.xml ficheros.txt
+
+      - name: Comprobar que no quedan bases temporales
+        if: always()
+        run: |
+          restantes=$(mysql -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" -N -B \
+            -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name LIKE 'cc\_t\_%';")
+          echo "Bases temporales restantes: $restantes"
+          if [ "$restantes" != "0" ]; then
+            mysql -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" -N -B \
+              -e "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'cc\_t\_%';"
+            echo "El desmontaje de las pruebas dejo bases sin eliminar."
+            exit 1
+          fi
+
+      - name: Guardar el informe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-pruebas
+          path: |
+            backend/informe-pruebas.xml
+            backend/ficheros.txt
+          if-no-files-found: warn
