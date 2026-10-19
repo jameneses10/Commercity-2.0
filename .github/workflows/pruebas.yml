@@ -103,15 +103,23 @@ jobs:
       - name: Comprobar que no quedan bases temporales
         if: always()
         run: |
-          restantes=$(mysql -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" -N -B \
-            -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name LIKE 'cc\_t\_%';")
-          echo "Bases temporales restantes: $restantes"
-          if [ "$restantes" != "0" ]; then
-            mysql -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" -N -B \
-              -e "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'cc\_t\_%';"
-            echo "El desmontaje de las pruebas dejo bases sin eliminar."
+          # Hay dos familias de bases desechables: cc_t_* las del arnes actual y
+          # cc_f00_test_* las de la regresion del formulario de vendedor. Mirar
+          # solo cc_t_* daria por limpio un runner que conserva las otras, que es
+          # justo el agujero que este paso existe para cerrar.
+          #
+          # El paso solo observa: enumera y falla, nunca borra. Si borrase,
+          # taparia el fallo de desmontaje que esta aqui para detectar.
+          filtro="schema_name LIKE 'cc\_t\_%' OR schema_name LIKE 'cc\_f00\_test\_%'"
+          nombres=$(mysql -h 127.0.0.1 -P 3306 -u root -p"$DB_PASSWORD" -N -B \
+            -e "SELECT schema_name FROM information_schema.schemata WHERE $filtro ORDER BY schema_name;")
+          if [ -n "$nombres" ]; then
+            echo "Bases temporales restantes: $(echo "$nombres" | wc -l)"
+            echo "El desmontaje de las pruebas dejo bases sin eliminar:"
+            echo "$nombres" | sed 's/^/  - /'
             exit 1
           fi
+          echo "Bases temporales restantes: 0"
 
       - name: Guardar el informe
         if: always()

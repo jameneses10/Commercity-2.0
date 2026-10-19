@@ -5,9 +5,15 @@
  * code verde no demuestra, por tanto, que la red de regresion se haya tendido.
  *
  * Este verificador compara los ficheros *.test.js que hay en disco con los que
- * el informe junit declara haber ejecutado —es el unico reporter que identifica
- * el fichero de cada prueba, en el atributo file=— y exige que no haya fallos
- * reales.
+ * se ejecutaron de verdad, y exige que no haya fallos reales.
+ *
+ * La lista de ficheros ejecutados la produce un reporter propio,
+ * tests/apoyo/reportero-ficheros.js, que lee el campo `file` de los eventos del
+ * corredor. Para eso NO sirve el atributo file= del informe junit: existe en
+ * unas plataformas y versiones de Node y en otras no, y en el runner informaba
+ * «0 ficheros ejecutados» con 108 pruebas verdes —justo el falso negativo
+ * que esta comprobacion debe impedir—. Del informe junit solo se leen los
+ * fallos y los `todo`.
  *
  * Ojo con los `todo`: el reporter junit los escribe como <failure>, porque la
  * asercion efectivamente no se cumple, pero los acompaña de
