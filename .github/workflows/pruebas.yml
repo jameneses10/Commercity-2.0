@@ -87,15 +87,18 @@ jobs:
           exit 1
 
       - name: Ejecutar la suite
-        # Dos reporters en la misma ejecucion: 'spec' para poder leer el log y
-        # 'junit' porque es el unico que identifica el fichero de cada prueba.
+        # Tres reporters en la misma ejecucion: 'spec' para leer el log,
+        # 'junit' para los fallos y los todo, y uno propio que declara que
+        # ficheros se ejecutaron. El atributo file= de junit no sirve para eso:
+        # existe en unas plataformas y versiones de Node y en otras no.
         run: >-
           npm test --
           --test-reporter=spec --test-reporter-destination=stdout
           --test-reporter=junit --test-reporter-destination=informe-pruebas.xml
+          --test-reporter=./tests/apoyo/reportero-ficheros.js --test-reporter-destination=ficheros.txt
 
       - name: Comprobar que se descubrio y ejecuto todo
-        run: node tests/apoyo/verifica-ci.js informe-pruebas.xml
+        run: node tests/apoyo/verifica-ci.js informe-pruebas.xml ficheros.txt
 
       - name: Comprobar que no quedan bases temporales
         if: always()
@@ -115,5 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: informe-pruebas
-          path: backend/informe-pruebas.xml
+          path: |
+            backend/informe-pruebas.xml
+            backend/ficheros.txt
           if-no-files-found: warn

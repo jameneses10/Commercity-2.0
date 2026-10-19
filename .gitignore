@@ -40,3 +40,4 @@ backend/uploads/**
 
 # Informe de pruebas generado por el runner
 backend/informe-pruebas.xml
+backend/ficheros.txt

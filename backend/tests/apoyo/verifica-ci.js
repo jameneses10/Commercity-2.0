@@ -19,7 +19,7 @@
  * cambian de forma legitima al añadir cobertura o al cerrar un hallazgo. Lo
  * innegociable es que no falte ningun fichero y que no falle nada.
  *
- *   node tests/apoyo/verifica-ci.js informe-pruebas.xml
+ *   node tests/apoyo/verifica-ci.js informe-pruebas.xml ficheros.txt
  */
 'use strict';
 
@@ -27,6 +27,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const informe = process.argv[2] || 'informe-pruebas.xml';
+const listaFicheros = process.argv[3] || 'ficheros.txt';
 const dirPruebas = path.join(__dirname, '..');
 
 if (!fs.existsSync(informe)) {
@@ -59,8 +60,21 @@ const nombre = (c) => (c.match(/<testcase\b[^>]*\bname="([^"]*)"/) || [, '(sin n
 const motivoTodo = (c) => (c.match(/<skipped\b[^>]*type="todo"[^>]*\bmessage="([^"]*)"/) || [, ''])[1];
 
 const enDisco = fs.readdirSync(dirPruebas).filter((f) => f.endsWith('.test.js')).sort();
+
+/* Los ficheros ejecutados los declara nuestro propio reporter. El atributo
+   file= del informe junit NO sirve: existe en unas plataformas y versiones de
+   Node y en otras no. En la maquina de desarrollo funcionaba y en el runner
+   daba «0 ficheros» con 108 pruebas verdes, que es justo el falso negativo
+   que esta comprobacion debe impedir. */
+if (!fs.existsSync(listaFicheros)) {
+  console.error('No se encontro ' + listaFicheros + ', que declara los ficheros ejecutados.');
+  process.exit(1);
+}
 const ejecutados = [...new Set(
-  [...xml.matchAll(/file="([^"]+)"/g)].map((m) => m[1].replace(/\\/g, '/').split('/').pop())
+  fs.readFileSync(listaFicheros, 'utf8').split('\n')
+    .filter((l) => l.startsWith('FICHERO\t'))
+    .map((l) => l.slice(8).trim().replace(/\\/g, '/').split('/').pop())
+    .filter(Boolean)
 )].sort();
 
 const faltan = enDisco.filter((f) => !ejecutados.includes(f));
