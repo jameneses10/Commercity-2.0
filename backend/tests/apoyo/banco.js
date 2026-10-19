@@ -57,9 +57,21 @@ const estado = {
 };
 
 /* Identificador unico para columnas con restriccion UNIQUE (slug de tienda y
-   de producto). Dejarlas vacias hace que la segunda insercion choque. */
+   de producto). Dejarlas vacias hace que la segunda insercion choque.
+
+   #104: apoyarse solo en Date.now() no basta. Dos llamadas dentro del mismo
+   milisegundo devolvian el mismo valor, y en un runner rapido eso ocurre: la
+   suite caia de forma intermitente con ER_DUP_ENTRY sobre
+   uk_productos_tienda_slug. El contador hace la unicidad DENTRO del proceso
+   deterministica —no depende de que el reloj avance ni de la suerte del
+   azar—, y el sufijo aleatorio la cubre ENTRE procesos, que es donde el
+   contador no sirve porque cada fichero de prueba corre en el suyo. */
+let contadorSlug = 0;
+
 function nuevoSlug(prefijo) {
-  return prefijo + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  contadorSlug += 1;
+  return prefijo + '-' + Date.now().toString(36) + '-' + contadorSlug.toString(36)
+    + '-' + Math.random().toString(36).slice(2, 7);
 }
 
 function nombreDeBase(etiqueta) {
@@ -239,7 +251,7 @@ async function siembraProductos(pool, tiendaId, categoriaId, n = 1, extra = {}) 
   for (let i = 0; i < n; i++) {
     const [r] = await pool.query(
       "INSERT INTO productos (tienda_id,categoria_id,nombre,slug,descripcion,precio,stock,estado) VALUES (?,?,?,?,?,?,?,?)",
-      [tiendaId, categoriaId, (extra.nombre || 'Producto') + ' ' + i, 'p-' + Date.now().toString(36) + '-' + i,
+      [tiendaId, categoriaId, (extra.nombre || 'Producto') + ' ' + i, nuevoSlug('p'),
         'Descripcion de prueba suficientemente larga.', extra.precio ?? (10000 + i * 100),
         extra.stock ?? 10, extra.estado || 'activo']);
     ids.push(r.insertId);
