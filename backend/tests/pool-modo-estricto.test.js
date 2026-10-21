@@ -247,7 +247,7 @@ describe('el contrato publico del pool se conserva', () => {
     }
   });
 
-  test('I6 el pool no expone una via de adquisicion sin verificar', () => {
+  test('I6 ninguna PROPIEDAD del pool permite adquirir sin verificar', () => {
     banco.exigeBanco();
     for (const clave of Object.keys(db.pool)) {
       const v = db.pool[clave];
@@ -256,6 +256,52 @@ describe('el contrato publico del pool se conserva', () => {
     }
     assert.equal(db.pool.sinEnvolver, undefined, 'sigue expuesto el pool sin envolver');
     assert.equal(db.pool.pool, undefined, 'sigue expuesto el pool interno');
+  });
+
+  test('I9-A lo que devuelve on() tampoco permite adquirir sin verificar', () => {
+    banco.exigeBanco();
+    /* EventEmitter.on devuelve el receptor. Reenviar ese valor entregaria el
+       pool de mysql2 sin envolver, y de ahi getConnection sin verificacion. */
+    const oyente = () => {};
+    const devuelto = db.pool.on('enqueue', oyente);
+    try {
+      assert.equal(devuelto, db.pool, 'on() no devolvio el envoltorio');
+      /* Lo devuelto es el envoltorio, asi que SI tiene getConnection: lo que
+         importa es que sea el verificado y no el del pool de mysql2. */
+      assert.equal(devuelto.getConnection, db.pool.getConnection,
+        'on() devolvio un objeto con un getConnection distinto del verificado');
+      assert.equal(typeof devuelto.sinEnvolver, 'undefined');
+    } finally {
+      db.pool.on('enqueue', () => {});
+    }
+  });
+
+  test('I9-B los eventos que entregan conexiones crudas no se reenvian', async () => {
+    banco.exigeBanco();
+    /* connection, acquire y release pasan al oyente la PoolConnection anterior
+       a aseguraModo. Suscribirse seria una via para usar una sesion sin
+       verificar, asi que se rechaza con un error claro. */
+    for (const evento of ['connection', 'acquire', 'release']) {
+      assert.throws(
+        () => db.pool.on(evento, () => {}),
+        (e) => e.code === 'EVENTO_NO_EXPUESTO',
+        'el evento ' + evento + ' se reenvio pese a entregar conexiones',
+      );
+    }
+    for (const evento of db.pool.EVENTOS_SEGUROS) {
+      assert.doesNotThrow(() => db.pool.on(evento, () => {}),
+        'el evento seguro ' + evento + ' deberia poder suscribirse');
+    }
+
+    /* Y comprobado de verdad: tras intentar suscribirse a los tres, ningun
+       oyente recibio conexion alguna durante una adquisicion real. */
+    let recibidas = 0;
+    for (const evento of ['connection', 'acquire', 'release']) {
+      try { db.pool.on(evento, () => { recibidas += 1; }); } catch { /* esperado */ }
+    }
+    const conn = await db.pool.getConnection();
+    conn.release();
+    assert.equal(recibidas, 0, 'un oyente recibio ' + recibidas + ' conexiones crudas');
   });
 
   test('el modo estricto rechaza de verdad un dato invalido a traves del pool', async () => {

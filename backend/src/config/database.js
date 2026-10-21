@@ -143,10 +143,35 @@ async function execute(...args) {
   }
 }
 
+/* Los eventos del pool de mysql2 que NO entregan una conexion. Los otros tres
+   —connection, acquire y release— pasan al oyente la PoolConnection cruda,
+   anterior a aseguraModo, de modo que suscribirse a ellos seria una via para
+   usar una sesion sin verificar. Ninguno se usa en el proyecto, asi que se
+   rechazan en vez de reenviarse: es preferible un error claro a una garantia
+   con un agujero. */
+const EVENTOS_SEGUROS = Object.freeze(['enqueue', 'error']);
+
+function on(evento, oyente) {
+  if (!EVENTOS_SEGUROS.includes(evento)) {
+    const error = new Error(
+      'El evento "' + evento + '" del pool entrega conexiones sin verificar y no se '
+      + 'reenvia. Eventos disponibles: ' + EVENTOS_SEGUROS.join(', ') + '.',
+    );
+    error.code = 'EVENTO_NO_EXPUESTO';
+    throw error;
+  }
+  base.on(evento, oyente);
+  /* Se devuelve el envoltorio, no `base`. EventEmitter.on devuelve el receptor,
+     asi que reenviar su valor entregaria el pool sin envolver a quien llamase:
+     `const crudo = pool.on('enqueue', () => {})` y de ahi getConnection sin
+     pasar por aseguraModo. */
+  return pool;
+}
+
 /* Misma superficie publica que antes: los modelos usan query y getConnection,
    y las transacciones usan la conexion devuelta.
-   No se expone el pool sin envolver: seria una via para obtener conexiones sin
-   verificar, que es justo lo que este modulo existe para impedir. */
+   No se expone el pool sin envolver por ninguna via: ni como propiedad, ni
+   como valor de retorno, ni a traves de un evento. */
 const pool = {
   query,
   execute,
@@ -155,7 +180,8 @@ const pool = {
   escape: (...args) => base.escape(...args),
   escapeId: (...args) => base.escapeId(...args),
   format: (...args) => base.format(...args),
-  on: (...args) => base.on(...args),
+  on,
+  EVENTOS_SEGUROS,
 };
 
 async function testConnection() {
