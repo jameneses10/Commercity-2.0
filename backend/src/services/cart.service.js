@@ -19,9 +19,12 @@ function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
 
    `items` en el cuerpo se sigue aceptando por compatibilidad, pero NO es fuente
    de verdad: se ignora. */
-async function validateCart(user){
+/* #81: `conn` es la conexion de la transaccion de quien valida. Con ella, la
+   lectura del carrito y la escritura de snapshots ocurren dentro del mismo
+   bloqueo que el checkout; sin ella, la escritura toma su propio bloqueo. */
+async function validateCart(user, conn){
  if(!user?.id) throw err('Usuario autenticado requerido para validar el carrito.',401);
- const {items}=await persistent.getCart(user.id);
+ const {items}=await persistent.getCart(user.id, conn);
  /* #66: al pasar a leer el carrito persistente se perdio la guarda que antes
     vivia en la primera linea de esta funcion, cuando los items llegaban por
     parametro. Sin ella, un carrito vacio devolvia un resultado "valido" con
@@ -50,7 +53,10 @@ async function validateCart(user){
  }
  /* Solo se escribe si algo cambió: advancePriceSnapshots ya corta con 0
     actualizaciones, pero así tampoco se le llama en el caso normal. */
- if(snapshotUpdates.size) await persistent.advancePriceSnapshots(user.id,[...snapshotUpdates.values()]);
+ if(snapshotUpdates.size){
+  if(conn) await persistent.advancePriceSnapshots(user.id,[...snapshotUpdates.values()],conn);
+  else await persistent.advancePriceSnapshotsLocked(user.id,[...snapshotUpdates.values()]);
+ }
  const total=valid_items.reduce((a,b)=>a+toCents(b.subtotal),0)/100;
  return {valid_items,invalid_items,price_changes,total,advertencias:invalid_items.map(i=>i.reason)};
 }

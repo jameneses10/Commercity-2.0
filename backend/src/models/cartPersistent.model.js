@@ -3,6 +3,51 @@ const { pool } = require('../config/database');
 const EFFECTIVE_PRICE_EXPR = `ROUND(CASE WHEN p.descuento_porcentaje > 0 THEN p.precio * (1 - p.descuento_porcentaje / 100) ELSE p.precio END, 2)`;
 function toCents(value) { return Math.round(Number(value) * 100); }
 
+/* #81: ancla de serializacion. Todo el que escriba en el carrito toma antes
+   esta fila, de modo que el checkout y las modificaciones no se solapen.
+   Medido: bloquear `carritos` NO basta por si solo. Insertar un hijo con
+   clave ajena toma un compartido sobre el padre y por eso addItem esperaba,
+   pero UPDATE y DELETE de un hijo no tocan al padre y entraban sin esperar
+   (200 en 12 y 15 ms con la fila bloqueada). De ahi que el bloqueo sea
+   explicito en los cinco escritores y no se confie en la clave ajena. */
+async function lockActiveCart(usuarioId, conn) {
+  const [[existing]] = await conn.query(
+    'SELECT id FROM carritos WHERE usuario_id = ? AND estado = ? LIMIT 1 FOR UPDATE',
+    [usuarioId, 'activo']
+  );
+  if (existing) return existing.id;
+  const [result] = await conn.query(
+    'INSERT INTO carritos (usuario_id, estado) VALUES (?, ?)',
+    [usuarioId, 'activo']
+  );
+  return result.insertId;
+}
+
+/* Vacia el carrito dentro de la transaccion de quien lo llama. No usa
+   clearCart: aquel abre su propia transaccion y no serviria para esto. */
+async function consumeItems(cartId, conn) {
+  const [result] = await conn.query(
+    'DELETE FROM carrito_items WHERE carrito_id = ?', [cartId]);
+  return result.affectedRows;
+}
+
+/* Ejecuta `fn` con el carrito bloqueado, en una transaccion propia. */
+async function conCarritoBloqueado(usuarioId, fn) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const cartId = await lockActiveCart(usuarioId, conn);
+    const salida = await fn(conn, cartId);
+    await conn.commit();
+    return salida;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 async function getActiveCartId(usuarioId, conn = pool) {
   const [[existing]] = await conn.query(
     'SELECT id FROM carritos WHERE usuario_id = ? AND estado = ? LIMIT 1',
@@ -78,7 +123,7 @@ async function upsertItem(usuarioId, productId, cantidad) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const cartId = await getActiveCartId(usuarioId, conn);
+    const cartId = await lockActiveCart(usuarioId, conn);
     const product = await getProduct(productId, conn);
     if (!product) {
       const error = new Error('Producto no encontrado.');
@@ -126,6 +171,7 @@ async function updateItem(usuarioId, itemId, cantidad) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    await lockActiveCart(usuarioId, conn);
     const item = await findItemForUser(usuarioId, itemId, conn);
     if (!item) {
       const error = new Error('Item de carrito no encontrado.');
@@ -156,20 +202,32 @@ async function updateItem(usuarioId, itemId, cantidad) {
 }
 
 async function deleteItem(usuarioId, itemId) {
-  const item = await findItemForUser(usuarioId, itemId);
-  if (!item) {
-    const error = new Error('Item de carrito no encontrado.');
-    error.statusCode = 404;
-    throw error;
-  }
-  await pool.query('DELETE FROM carrito_items WHERE id = ?', [itemId]);
-  return getCart(usuarioId);
+  return conCarritoBloqueado(usuarioId, async (conn) => {
+    const item = await findItemForUser(usuarioId, itemId, conn);
+    if (!item) {
+      const error = new Error('Item de carrito no encontrado.');
+      error.statusCode = 404;
+      throw error;
+    }
+    await conn.query('DELETE FROM carrito_items WHERE id = ?', [itemId]);
+    return getCart(usuarioId, conn);
+  });
 }
 
 async function clearCart(usuarioId) {
-  const cartId = await getActiveCartId(usuarioId);
-  await pool.query('DELETE FROM carrito_items WHERE carrito_id = ?', [cartId]);
-  return getCart(usuarioId);
+  return conCarritoBloqueado(usuarioId, async (conn, cartId) => {
+    await conn.query('DELETE FROM carrito_items WHERE carrito_id = ?', [cartId]);
+    return getCart(usuarioId, conn);
+  });
+}
+
+/* La validacion publica del carrito tambien escribe, al avanzar los
+   snapshots de precio. Cuando no corre dentro de otra transaccion, necesita
+   el mismo bloqueo que los demas escritores. */
+async function advancePriceSnapshotsLocked(usuarioId, updates) {
+  if (!updates.length) return 0;
+  return conCarritoBloqueado(usuarioId, (conn) =>
+    advancePriceSnapshots(usuarioId, updates, conn));
 }
 
 async function advancePriceSnapshots(usuarioId, updates, conn = pool) {
@@ -198,4 +256,7 @@ module.exports = {
   deleteItem,
   clearCart,
   advancePriceSnapshots,
+  advancePriceSnapshotsLocked,
+  lockActiveCart,
+  consumeItems,
 };

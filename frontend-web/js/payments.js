@@ -1,6 +1,11 @@
 import { api } from './api.js';
 import { hideCheckoutMessage, revalidateCheckout, showCheckoutMessage } from './checkout.js';
 
+/* #82: pedido creado cuyo pago fue rechazado. El siguiente intento paga
+   ESE pedido en vez de crear otro, porque desde #81 el carrito ya se
+   consumio al crearlo y no hay nada con que reconstruirlo. */
+const PEDIDO_PENDIENTE = 'cc_pedido_pendiente';
+
 const paymentForm = document.querySelector('[data-payment-form]');
 const submitBtn = document.querySelector('[data-payment-submit]');
 
@@ -29,23 +34,32 @@ if (paymentForm) {
         }
 
         try {
-            // 1. Revalidar
-            const ctx = await revalidateCheckout();
-            if (!ctx.valid || !ctx.direccion_id || ctx.valid_items.length === 0) {
-                showCheckoutMessage(ctx.validation_message || 'El carrito o la dirección ya no son válidos. Revisa tu pedido.');
-                return;
-            }
+            // 1. Reintento: si un intento anterior dejo un pedido rechazado,
+            //    se paga ESE pedido en vez de crear otro. Desde #81 el carrito
+            //    se consume al crear el pedido, asi que revalidarlo aqui
+            //    encontraria un carrito vacio y el reintento seria imposible.
+            let order = null;
+            const pedidoPendiente = Number(sessionStorage.getItem(PEDIDO_PENDIENTE) || 0);
+            if (pedidoPendiente > 0) {
+                order = { id: pedidoPendiente };
+            } else {
+                // 2. Primer intento: revalidar y crear el pedido
+                const ctx = await revalidateCheckout();
+                if (!ctx.valid || !ctx.direccion_id || ctx.valid_items.length === 0) {
+                    showCheckoutMessage(ctx.validation_message || 'El carrito o la dirección ya no son válidos. Revisa tu pedido.');
+                    return;
+                }
 
-            // 2. Crear pedido
-            const orderPayload = {
-                direccion_id: ctx.direccion_id,
-                items: ctx.valid_items.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad }))
-            };
+                const orderPayload = {
+                    direccion_id: ctx.direccion_id,
+                    items: ctx.valid_items.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad }))
+                };
 
-            const orderRes = await api.post('/orders', orderPayload);
-            const order = orderRes.data?.order;
-            if (!order || !order.id) {
-                throw new Error('No se pudo confirmar la creación del pedido.');
+                const orderRes = await api.post('/orders', orderPayload);
+                order = orderRes.data?.order;
+                if (!order || !order.id) {
+                    throw new Error('No se pudo confirmar la creación del pedido.');
+                }
             }
 
             // 3. Pagar (sandbox)
@@ -62,12 +76,11 @@ if (paymentForm) {
             const payment = paymentRes.data?.payment;
 
             if (payment?.estado === 'aprobado') {
-                // 4. Limpiar carrito
-                try {
-                    await api.delete('/cart');
-                } catch (err) {
-                    // Ignorar error de limpieza (Paso 41: no convierte pago aprobado en fallo)
-                }
+                // 4. El carrito NO se borra aqui. Desde #81 el servidor lo
+                //    consume dentro de la misma transaccion que crea el
+                //    pedido; borrarlo ahora eliminaria lo que el comprador
+                //    haya anadido despues, desde otra pestana o dispositivo.
+                sessionStorage.removeItem(PEDIDO_PENDIENTE);
 
                 const resultData = {
                     pedido_id: order.id,
@@ -78,6 +91,9 @@ if (paymentForm) {
                 sessionStorage.setItem('cc_payment_result', JSON.stringify(resultData));
                 window.location.href = 'pago-realizado.html';
             } else {
+                // El pedido queda en 'rechazado' y se puede reintentar sobre
+                // el mismo id: se recuerda para el siguiente envio.
+                sessionStorage.setItem(PEDIDO_PENDIENTE, String(order.id));
                 showCheckoutMessage(payment?.mensaje || 'Pago rechazado.');
             }
         } catch (error) {

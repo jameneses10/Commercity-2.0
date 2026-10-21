@@ -261,7 +261,7 @@ describe('pago rechazado', () => {
     assert.equal(pago.estado, 'rechazado', 'solo la tarjeta de aprobacion debe aprobar');
   });
 
-  test('tras un rechazo el comprador puede reintentar el pago', { todo: '#82 — el rechazo deja el pedido en estado_pago=rechazado y processPayment exige pendiente, de modo que no hay reintento posible' }, async () => {
+  test('tras un rechazo el comprador puede reintentar el pago', async () => {
     banco.exigeBanco();
     const { pedidoId } = await pedidoNuevo();
     await ctx.pide('POST', '/payments/sandbox', { token: ctx.tokenA, json: tarjeta(RECHAZA, pedidoId) });

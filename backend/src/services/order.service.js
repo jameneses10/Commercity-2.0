@@ -1,22 +1,41 @@
 const { pool } = require('../config/database');
 const cartService=require('./cart.service');
+const cartModel=require('../models/cartPersistent.model');
 const addressService=require('./address.service');
 const orderModel=require('../models/order.model');
 const comprobanteModel=require('../models/comprobante.model');
 const logService=require('./log.service');
 function err(m,s){const e=new Error(m);e.statusCode=s;return e;}
+/* #81: el carrito se bloquea, se valida y se CONSUME en la misma transaccion
+   que crea el pedido. Antes nada ataba el carrito al pedido: medido sobre la
+   API real, cinco checkouts simultaneos del mismo carrito producian cinco
+   pedidos, cinco pagos aprobados y cinco descuentos de existencias.
+   `items` llega del validador HTTP pero no se usa: la fuente de verdad es el
+   carrito persistente. */
 async function createOrder(user,{direccion_id,items}){
  await addressService.own(direccion_id,user);
- const cart=await cartService.validateCart(user,items);
- if(cart.price_changes.length) throw err(cart.price_changes.map(change=>change.reason).join(' ')||'Los precios del carrito cambiaron.',409);
- if(cart.invalid_items.length) throw err('El carrito contiene productos inválidos.',409);
  const conn=await pool.getConnection();
+ let confirmada=false;
  try{ await conn.beginTransaction();
+  const carritoId=await cartModel.lockActiveCart(user.id,conn);
+  const cart=await cartService.validateCart(user,conn);
+  if(cart.price_changes.length||cart.invalid_items.length){
+   /* El rechazo se CONFIRMA en vez de revertirse. Los snapshots de precio ya
+      se escribieron en esta transaccion y deben sobrevivir: si se perdieran,
+      el siguiente intento volveria a comparar contra el precio viejo y el
+      comprador quedaria atrapado recibiendo el mismo 409 para siempre. Aqui
+      no se ha creado pedido ni consumido nada, asi que confirmar solo
+      persiste los snapshots. */
+   await conn.commit(); confirmada=true;
+   if(cart.price_changes.length) throw err(cart.price_changes.map(change=>change.reason).join(' ')||'Los precios del carrito cambiaron.',409);
+   throw err('El carrito contiene productos inválidos.',409);
+  }
   const id=await orderModel.createWithDetails(conn,{comprador_id:user.id,direccion_id,total:cart.total,items:cart.valid_items});
+  await cartModel.consumeItems(carritoId,conn);
   await logService.log(conn,{usuario_id:user.id,accion:'pedido_creado',entidad:'pedidos',entidad_id:id,detalle:{total:cart.total,items:cart.valid_items.length,estado_pago:'pendiente',estado_general:'creado'}});
-  await conn.commit();
+  await conn.commit(); confirmada=true;
   return getOrderForUser(id,user);
- }catch(e){await conn.rollback(); throw e;} finally{conn.release();}
+ }catch(e){ if(!confirmada) await conn.rollback(); throw e;} finally{conn.release();}
 }
 async function formatOrder(o){ return {...o, details: await orderModel.getDetails(o.id)}; }
 async function getOrderForUser(id,user){
