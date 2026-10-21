@@ -160,7 +160,15 @@ function on(evento, oyente) {
     error.code = 'EVENTO_NO_EXPUESTO';
     throw error;
   }
-  base.on(evento, oyente);
+  /* El oyente no se registra tal cual: Node invoca un oyente tradicional con
+     `this` apuntando al emisor, que aqui es el PromisePool interno. Un
+     `function () { this.getConnection() }` tendria asi una via al pool sin
+     envolver —medido: `this` llega como PromisePool con getConnection propio—.
+     Se interpone un intermediario que lo llama con el envoltorio como
+     contexto; los argumentos se reenvian intactos. */
+  base.on(evento, function intermediario(...args) {
+    return Reflect.apply(oyente, pool, args);
+  });
   /* Se devuelve el envoltorio, no `base`. EventEmitter.on devuelve el receptor,
      asi que reenviar su valor entregaria el pool sin envolver a quien llamase:
      `const crudo = pool.on('enqueue', () => {})` y de ahi getConnection sin

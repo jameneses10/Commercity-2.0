@@ -276,6 +276,27 @@ describe('el contrato publico del pool se conserva', () => {
     }
   });
 
+  test('I10-A el contexto del oyente es el envoltorio, no el pool interno', async () => {
+    banco.exigeBanco();
+    /* Node llama a un oyente tradicional con `this` en el emisor. Sin
+       intermediario, ese emisor es el PromisePool interno y un
+       `function () { this.getConnection() }` tendria via libre. */
+    const contextos = [];
+    db.pool.on('enqueue', function oyenteTradicional() { contextos.push(this); });
+
+    /* El pool tiene 10 conexiones: con 14 consultas a la vez, las ultimas se
+       encolan y disparan enqueue. */
+    await Promise.all(Array.from({ length: 14 }, () => db.pool.query('SELECT SLEEP(0.05)')));
+
+    assert.ok(contextos.length > 0, 'el evento enqueue no llego a dispararse');
+    for (const ctxOyente of contextos) {
+      assert.equal(ctxOyente, db.pool, 'el oyente recibio un contexto que no es el envoltorio');
+      /* I10-B: y por tanto su getConnection es el verificado, no otro. */
+      assert.equal(ctxOyente.getConnection, db.pool.getConnection);
+      assert.equal(ctxOyente.sinEnvolver, undefined);
+    }
+  });
+
   test('I9-B los eventos que entregan conexiones crudas no se reenvian', async () => {
     banco.exigeBanco();
     /* connection, acquire y release pasan al oyente la PoolConnection anterior
