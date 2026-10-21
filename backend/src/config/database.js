@@ -24,16 +24,18 @@
  * garantia.
  *
  * Lo que se hace en su lugar es envolver la adquisicion. Toda conexion pasa
- * por `aseguraModo` ANTES de volver a quien la pidio, y la propiedad que se
- * busca queda sostenida por la estructura del codigo y no por el orden de los
- * sucesos: no hay forma de obtener una conexion de este modulo sin que su
- * sesion haya quedado verificada.
+ * por `aseguraModo` ANTES de volver a quien la pidio, y la propiedad queda
+ * sostenida por la estructura del codigo y no por el orden de los sucesos: no
+ * hay forma de obtener una conexion de este modulo sin que su sesion se haya
+ * LEIDO y resultado conforme.
  *
- * La marca vive en la conexion FISICA (`conn.connection`), que el pool reusa;
- * el envoltorio de promesas es nuevo en cada adquisicion. Verificado: tras
- * release y nueva adquisicion, `a.connection === b.connection` y la marca
- * sobrevive, de modo que el SET se paga una vez por conexion fisica y no una
- * vez por consulta.
+ * Por que se lee en cada adquisicion y no se recuerda: una marca solo prueba
+ * que la sesion estuvo estricta alguna vez, no que lo siga estando. Cualquiera
+ * que tenga la conexion puede ejecutar `SET SESSION sql_mode` y devolverla al
+ * pool; con una marca, la siguiente adquisicion la daria por buena sin mirar.
+ * El coste es un viaje de ida y vuelta por adquisicion —un SELECT sobre una
+ * variable de sesion, sin tocar disco— y a cambio la garantia no depende de
+ * que nadie haga algo que el pool no puede impedir.
  *
  * Si el SET o su comprobacion fallan, la conexion se DESTRUYE en vez de
  * devolverse al pool: una sesion cuyo modo no se pudo confirmar no debe
@@ -44,20 +46,31 @@ const env = require('./env');
 
 /* El estricto por defecto de MySQL 8.4, nombrado entero: lo que no se puede
    dar por supuesto es precisamente el modo del servidor. */
-const MODO_ESTRICTO = [
+const BANDERAS = Object.freeze([
   'ONLY_FULL_GROUP_BY',
   'STRICT_TRANS_TABLES',
   'NO_ZERO_IN_DATE',
   'NO_ZERO_DATE',
   'ERROR_FOR_DIVISION_BY_ZERO',
   'NO_ENGINE_SUBSTITUTION',
-].join(',');
+]);
 
-/* Las que no pueden faltar para que un dato invalido sea error y no aviso. */
-const EXIGIDAS = ['STRICT_TRANS_TABLES', 'NO_ZERO_DATE', 'NO_ZERO_IN_DATE'];
+const MODO_ESTRICTO = BANDERAS.join(',');
 
-/* Symbol para que la marca no colisione con nada de mysql2. */
-const VERIFICADA = Symbol('sql_mode estricto verificado');
+/* Se exigen LAS SEIS que se configuran, no un subconjunto. ONLY_FULL_GROUP_BY
+   entra aqui con las demas: las consultas agrupadas se auditaron contra ella,
+   de modo que una sesion sin esa bandera no es la que se verifico.
+   Se admiten banderas de mas —mysql2 anade IGNORE_SPACE—; lo que no se admite
+   es que falte alguna de las seis. */
+function cumpleModo(modo) {
+  const presentes = new Set(String(modo || '').split(','));
+  return BANDERAS.every((bandera) => presentes.has(bandera));
+}
+
+function faltantes(modo) {
+  const presentes = new Set(String(modo || '').split(','));
+  return BANDERAS.filter((bandera) => !presentes.has(bandera));
+}
 
 const base = mysql.createPool({
   host: env.db.host,
@@ -70,35 +83,30 @@ const base = mysql.createPool({
   queueLimit: 0,
 });
 
-/* La conexion fisica que el pool reutiliza, bajo el envoltorio de promesas. */
-function fisica(conn) {
-  return conn.connection || conn;
+async function modoDeLaSesion(conn) {
+  const [filas] = await conn.query('SELECT @@SESSION.sql_mode AS modo');
+  return (filas[0] && filas[0].modo) || '';
 }
 
+/* Deja la sesion en modo estricto, o lanza. Nunca devuelve sin haberlo
+   comprobado leyendo el valor efectivo de ESA conexion. */
 async function aseguraModo(conn) {
-  const nucleo = fisica(conn);
-  if (nucleo[VERIFICADA]) return;
+  let modo = await modoDeLaSesion(conn);
+  if (cumpleModo(modo)) return modo;
 
   await conn.query(`SET SESSION sql_mode = '${MODO_ESTRICTO}'`);
+  modo = await modoDeLaSesion(conn);
 
-  /* Se relee de la MISMA conexion: es el unico sitio donde el valor significa
-     algo. @@GLOBAL diria otra cosa, y otra conexion del pool, otra distinta. */
-  const [filas] = await conn.query('SELECT @@SESSION.sql_mode AS modo');
-  const efectivo = (filas[0] && filas[0].modo) || '';
-  const presentes = new Set(efectivo.split(','));
-  const faltan = EXIGIDAS.filter((bandera) => !presentes.has(bandera));
-
-  if (faltan.length) {
-    const e = new Error(
-      'La conexion no quedo en modo SQL estricto: faltan ' + faltan.join(', ')
-      + '. sql_mode efectivo: ' + (efectivo || '(vacio)')
+  if (!cumpleModo(modo)) {
+    const error = new Error(
+      'La conexion no quedo en modo SQL estricto: faltan ' + faltantes(modo).join(', ')
+      + '. sql_mode efectivo: ' + (modo || '(vacio)')
       + '. No se ejecuta ninguna consulta sobre ella.',
     );
-    e.code = 'SQL_MODE_NO_ESTRICTO';
-    throw e;
+    error.code = 'SQL_MODE_NO_ESTRICTO';
+    throw error;
   }
-
-  nucleo[VERIFICADA] = true;
+  return modo;
 }
 
 /* Unica puerta de entrada a una conexion. Si la verificacion falla, la
@@ -136,7 +144,9 @@ async function execute(...args) {
 }
 
 /* Misma superficie publica que antes: los modelos usan query y getConnection,
-   y las transacciones usan la conexion devuelta. */
+   y las transacciones usan la conexion devuelta.
+   No se expone el pool sin envolver: seria una via para obtener conexiones sin
+   verificar, que es justo lo que este modulo existe para impedir. */
 const pool = {
   query,
   execute,
@@ -146,9 +156,6 @@ const pool = {
   escapeId: (...args) => base.escapeId(...args),
   format: (...args) => base.format(...args),
   on: (...args) => base.on(...args),
-  /* El pool sin envolver, para pruebas y diagnostico. No lo use el codigo de
-     la aplicacion: sus conexiones no pasan por aseguraModo. */
-  sinEnvolver: base,
 };
 
 async function testConnection() {
@@ -164,6 +171,9 @@ async function testConnection() {
 module.exports = {
   pool,
   testConnection,
+  /* Expuestos para poder comprobarlos desde las pruebas sin abrir una via de
+     adquisicion: son el contrato declarado, no un atajo al pool. */
   MODO_ESTRICTO,
-  EXIGIDAS,
+  BANDERAS,
+  cumpleModo,
 };
