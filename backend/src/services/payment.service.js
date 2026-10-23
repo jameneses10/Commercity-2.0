@@ -25,7 +25,11 @@ async function processPayment(user,{pedido_id,card_number}){
   const order=await orderModel.lockOrder(conn,pedido_id); if(!order) throw err('Pedido no encontrado.',404);
   if(order.comprador_id!==user.id) throw err('No tiene permisos para pagar este pedido.',403);
   if(order.estado_pago==='pagado') throw err('El pedido ya fue pagado y no puede procesarse dos veces.',409);
-  if(order.estado_pago!=='pendiente') throw err('El pedido no está pendiente de pago.',409);
+  /* #82: un rechazo deja el pedido en 'rechazado'. Sin admitir ese estado no
+     habia forma de reintentar y el pedido quedaba impagable; lo unico que lo
+     salvaba era que el carrito no se vaciase, y eso es justo lo que #81
+     corrige. El estado 'pagado' se sigue rechazando en la linea anterior. */
+  if(order.estado_pago!=='pendiente'&&order.estado_pago!=='rechazado') throw err('El pedido no está pendiente de pago.',409);
   if(rejected){ await paymentModel.create(conn,{pedido_id,metodo:'sandbox_card',referencia:reference('REJ'),estado:'rechazado',mensaje:'Pago sandbox rechazado.'}); await orderModel.updateStatus(conn,pedido_id,{estado_pago:'rechazado',estado_general:'creado'}); await notificationService.create(conn,order.comprador_id,{tipo:'pago_rechazado',titulo:'Pago rechazado',mensaje:`El pago del pedido ${pedido_id} fue rechazado.`}); await logService.log(conn,{usuario_id:user.id,accion:'pago_rechazado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_card',estado_pago_anterior:order.estado_pago,estado_general_anterior:order.estado_general,estado_pago:'rechazado',estado_general:'creado'}}); await conn.commit(); return {estado:'rechazado',mensaje:'Pago sandbox rechazado.'}; }
   const details=await orderModel.getDetailsConn(conn,pedido_id);
   const requiredByProduct=buildRequiredQuantityByProduct(details);
@@ -50,7 +54,7 @@ async function processPayment(user,{pedido_id,card_number}){
 async function webhookAdmin(user,{pedido_id,approved}){
  const conn=await pool.getConnection();
  try{ await conn.beginTransaction();
-  const order=await orderModel.lockOrder(conn,pedido_id); if(!order) throw err('Pedido no encontrado.',404); if(order.estado_pago==='pagado') throw err('El pedido ya fue procesado.',409); if(order.estado_pago!=='pendiente') throw err('El pedido no está pendiente.',409);
+  const order=await orderModel.lockOrder(conn,pedido_id); if(!order) throw err('Pedido no encontrado.',404); if(order.estado_pago==='pagado') throw err('El pedido ya fue procesado.',409); if(order.estado_pago!=='pendiente'&&order.estado_pago!=='rechazado') throw err('El pedido no está pendiente.',409);
   if(!approved){ await paymentModel.create(conn,{pedido_id,metodo:'sandbox_webhook',referencia:reference('WH-REJ'),estado:'rechazado',mensaje:'Webhook sandbox rechazado.'}); await orderModel.updateStatus(conn,pedido_id,{estado_pago:'rechazado',estado_general:'creado'}); await notificationService.create(conn,order.comprador_id,{tipo:'pago_rechazado',titulo:'Pago rechazado',mensaje:`El pago del pedido ${pedido_id} fue rechazado.`}); await logService.log(conn,{usuario_id:user.id,accion:'pago_rechazado',entidad:'pedidos',entidad_id:pedido_id,detalle:{metodo:'sandbox_webhook',estado_pago_anterior:order.estado_pago,estado_general_anterior:order.estado_general,estado_pago:'rechazado',estado_general:'creado'}}); await conn.commit(); return {estado:'rechazado'}; }
   const details=await orderModel.getDetailsConn(conn,pedido_id);
   const requiredByProduct=buildRequiredQuantityByProduct(details);
