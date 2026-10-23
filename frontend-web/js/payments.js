@@ -2,6 +2,7 @@ import { api } from './api.js';
 import {
     hideCheckoutMessage, revalidateCheckout, showCheckoutMessage,
     pedidoPendiente, recuerdaPedidoPendiente, olvidaPedidoPendiente,
+    modoPendiente, resuelvePedidoPendiente,
 } from './checkout.js';
 
 const paymentForm = document.querySelector('[data-payment-form]');
@@ -37,7 +38,21 @@ if (paymentForm) {
             //    se consume al crear el pedido, asi que revalidarlo aqui
             //    encontraria un carrito vacio y el reintento seria imposible.
             let order = null;
-            const pendiente = pedidoPendiente();
+            let modo = modoPendiente();
+            if (modo === 'indeterminado') {
+                /* La comprobacion al cargar fallo por una causa transitoria.
+                   Se reintenta AQUI, que es el unico momento en que importa:
+                   crear otro pedido sin saber en que quedo el anterior es
+                   justo lo que #81 vino a impedir. */
+                modo = await resuelvePedidoPendiente();
+            }
+            if (modo === 'indeterminado') {
+                showCheckoutMessage('Seguimos sin poder comprobar el estado de tu pedido '
+                    + pedidoPendiente() + '. No se creara otro pedido mientras tanto;'
+                    + ' vuelve a intentarlo cuando se restablezca la conexión.');
+                return;
+            }
+            const pendiente = modo === 'reintento' ? pedidoPendiente() : 0;
             if (pendiente > 0) {
                 order = { id: pendiente };
             } else {

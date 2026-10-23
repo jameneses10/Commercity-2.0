@@ -8,8 +8,16 @@ let context = {
     total: 0,
     valid: false,
     validation_message: '',
-    /* #82: pedido ya creado al que apunta una referencia guardada */
+    /* #82: pedido ya creado al que apunta una referencia guardada.
+       `estado_pendiente` tiene tres valores y no dos, porque "no he podido
+       comprobarlo" no es lo mismo que "no hay ninguno":
+         'ninguno'       no hay referencia, o se demostro que no sirve
+         'reintento'     el pedido existe y admite pago
+         'indeterminado' la consulta fallo por una causa transitoria */
+    estado_pendiente: 'ninguno',
     pedido_pendiente: 0,
+    pendiente_sin_verificar: 0,
+    total_pendiente: 0,
     reintento: false
 };
 
@@ -40,35 +48,77 @@ export function pedidoPendiente() {
     }
 }
 
+/* Los dos escritores mantienen en paso el almacenamiento y el contexto. Se
+   hace aqui y no en quien llama porque la decision de pagar ya no se toma
+   leyendo sessionStorage: tras un rechazo, sin recargar la pagina, un
+   contexto desfasado habria dejado crear un segundo pedido. */
 export function recuerdaPedidoPendiente(id) {
     try { sessionStorage.setItem(PEDIDO_PENDIENTE, String(id)); } catch (e) { /* sin almacenamiento */ }
+    context.pedido_pendiente = id;
+    context.pendiente_sin_verificar = 0;
+    context.estado_pendiente = 'reintento';   /* acaba de crearse: es pagable */
 }
 
 export function olvidaPedidoPendiente() {
     try { sessionStorage.removeItem(PEDIDO_PENDIENTE); } catch (e) { /* sin almacenamiento */ }
+    context.pedido_pendiente = 0;
+    context.pendiente_sin_verificar = 0;
+    context.estado_pendiente = 'ninguno';
+}
+
+/* Un fallo al consultar no demuestra nada sobre el pedido. Solo dos
+   respuestas lo hacen: 404 (no existe) y 403 (no es de este comprador).
+   Un corte de red, un 5xx, una sesion caducada o una respuesta ilegible
+   dejan la referencia intacta: borrarla ahi era perder precisamente lo
+   unico con que recuperar un pedido que el carrito ya no puede reconstruir. */
+function esDefinitivo(error) {
+    if (error?.isNetworkError) return false;
+    const estado = Number(error?.status);
+    return estado === 404 || estado === 403;
 }
 
 /* Una referencia guardada puede haber caducado: otro dispositivo la pago, el
    comprador cambio de cuenta, o el pedido ya no existe. Se consulta al
-   servidor y se descarta si no se puede reintentar, para que una referencia
-   vieja no bloquee una compra nueva. */
+   servidor y se descarta si se demuestra que no se puede reintentar, para que
+   una referencia vieja no bloquee una compra nueva. */
 export async function resuelvePedidoPendiente() {
     const id = pedidoPendiente();
-    if (!id) return null;
+    context.pedido_pendiente = 0;
+    context.pendiente_sin_verificar = 0;
+    context.total_pendiente = 0;
+    if (!id) {
+        context.estado_pendiente = 'ninguno';
+        return 'ninguno';
+    }
     try {
         const res = await api.get('/orders/' + id);
         const pedido = res.data?.order || res.data;
         const estado = pedido?.estado_pago;
         if (estado === 'pendiente' || estado === 'rechazado') {
             context.pedido_pendiente = id;
-            return id;
+            context.total_pendiente = Number(pedido?.total) || 0;
+            context.estado_pendiente = 'reintento';
+            return 'reintento';
         }
         olvidaPedidoPendiente();            /* ya pagado, cancelado u otro estado */
+        context.estado_pendiente = 'ninguno';
+        return 'ninguno';
     } catch (e) {
-        olvidaPedidoPendiente();            /* no existe o no es de este usuario */
+        if (esDefinitivo(e)) {
+            olvidaPedidoPendiente();        /* no existe o no es de este comprador */
+            context.estado_pendiente = 'ninguno';
+            return 'ninguno';
+        }
+        /* Se conserva la referencia y no se crea ningun pedido nuevo hasta
+           saber en que estado quedo este. */
+        context.pendiente_sin_verificar = id;
+        context.estado_pendiente = 'indeterminado';
+        return 'indeterminado';
     }
-    context.pedido_pendiente = 0;
-    return null;
+}
+
+export function modoPendiente() {
+    return context.estado_pendiente;
 }
 const paymentMessage = document.querySelector('[data-payment-message]');
 
@@ -228,9 +278,14 @@ async function loadCart() {
        vacio -la guarda de #66- y ese mensaje taparia el del reintento,
        dejando al comprador con un boton habilitado y un texto que le dice lo
        contrario. */
-    if (context.pedido_pendiente > 0) {
-        renderEmptyCart(true);
-        updateSubmitState();
+    if (context.estado_pendiente === 'reintento') {
+        renderPedidoPendiente();
+        return;
+    }
+    /* Cuando el estado del pedido no se pudo comprobar, el carrito tampoco es
+       lo que hay que resolver: validarlo solo anadiria otro mensaje. */
+    if (context.estado_pendiente === 'indeterminado') {
+        renderPendienteSinVerificar();
         return;
     }
     try {
@@ -289,17 +344,67 @@ function renderEmptyCart(hasInvalid = false) {
     updateSubmitState();
 }
 
+/* `renderEmptyCart` pinta "Carrito no válido o vacío" y descubre el aviso
+   rojo. Con un pedido pendiente el carrito esta vacio POR DISEÑO, de modo
+   que ese texto contradecia al mensaje de reintento mostrado justo debajo.
+   Estos dos resumenes describen el pedido, que es lo que esta en juego. */
+function renderPedidoPendiente() {
+    itemsContainer.innerHTML = `<div class="flex justify-between">
+            <span>Pedido ${escapeHtml(String(context.pedido_pendiente))} pendiente de pago</span>
+            <b>${escapeHtml(money(context.total_pendiente))}</b>
+        </div>`;
+    subtotalEl.textContent = money(context.total_pendiente);
+    totalEl.textContent = money(context.total_pendiente);
+    emptyCartMsg.classList.add('cc-hidden');
+    context.valid_items = [];
+    context.total = context.total_pendiente;
+    updateSubmitState();
+}
+
+function renderPendienteSinVerificar() {
+    itemsContainer.innerHTML = `<div class="flex justify-between">
+            <span>Pedido ${escapeHtml(String(context.pendiente_sin_verificar))}: estado sin comprobar</span>
+        </div>`;
+    subtotalEl.textContent = money(0);
+    totalEl.textContent = money(0);
+    emptyCartMsg.classList.add('cc-hidden');
+    context.valid_items = [];
+    context.total = 0;
+    updateSubmitState();
+}
+
 function updateSubmitState() {
     /* Con un pedido pendiente el carrito esta vacio por diseño, asi que no
-       puede ser lo que decida si el boton se habilita. */
-    const reintento = context.pedido_pendiente > 0;
-    context.reintento = reintento;
-    context.valid = reintento || !!(context.direccion_id && context.valid_items.length > 0);
-    if(submitBtn) submitBtn.disabled = !context.valid;
-    if(reintento) {
+       puede ser lo que decida si el boton se habilita.
+       `context.valid` significa "se puede crear un pedido nuevo", y por eso
+       es falso mientras el estado del anterior siga siendo desconocido. */
+    const modo = context.estado_pendiente;
+    context.reintento = modo === 'reintento';
+
+    if(modo === 'reintento') {
+        context.valid = true;
+        if(submitBtn) submitBtn.disabled = false;
         showCheckoutMessage('Tienes el pedido ' + context.pedido_pendiente
             + ' pendiente de pago. Al continuar se reintentara ese pedido, no se creara uno nuevo.');
+        return;
     }
+
+    if(modo === 'indeterminado') {
+        /* El boton sigue activo a proposito: es el unico control de la
+           pantalla y pulsarlo vuelve a comprobar el pedido antes de hacer
+           nada. Deshabilitarlo encerraria al comprador hasta recargar, con un
+           pedido ya creado y un carrito que no puede reconstruirlo. */
+        context.valid = false;
+        if(submitBtn) submitBtn.disabled = false;
+        showCheckoutMessage('No pudimos comprobar el estado de tu pedido '
+            + context.pendiente_sin_verificar
+            + '. No se creara ningun pedido nuevo hasta saberlo: vuelve a pulsar'
+            + ' "Pagar ahora" para comprobarlo de nuevo.');
+        return;
+    }
+
+    context.valid = !!(context.direccion_id && context.valid_items.length > 0);
+    if(submitBtn) submitBtn.disabled = !context.valid;
 }
 
 async function init() {
