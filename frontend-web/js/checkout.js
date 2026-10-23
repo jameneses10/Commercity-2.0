@@ -7,7 +7,10 @@ let context = {
     price_changes: [],
     total: 0,
     valid: false,
-    validation_message: ''
+    validation_message: '',
+    /* #82: pedido ya creado al que apunta una referencia guardada */
+    pedido_pendiente: 0,
+    reintento: false
 };
 
 const root = document.querySelector('[data-checkout-root]');
@@ -18,6 +21,55 @@ const subtotalEl = document.querySelector('[data-checkout-subtotal]');
 const totalEl = document.querySelector('[data-checkout-total]');
 const emptyCartMsg = document.querySelector('[data-checkout-empty]');
 const submitBtn = document.querySelector('[data-payment-submit]');
+
+/* #82: pedido ya creado cuyo pago no llego a aprobarse. Desde #81 el carrito
+   se consume al crear el pedido, de modo que tras un rechazo no queda nada
+   con que reconstruirlo: el siguiente intento tiene que pagar ESE pedido.
+   La referencia vive aqui, y no en payments.js, porque es `updateSubmitState`
+   quien decide si el comprador puede enviar el formulario: guardandola solo
+   en payments.js, al recargar la pagina el boton quedaba deshabilitado por un
+   carrito vacio y el reintento era inalcanzable. */
+const PEDIDO_PENDIENTE = 'cc_pedido_pendiente';
+
+export function pedidoPendiente() {
+    try {
+        const n = Number(sessionStorage.getItem(PEDIDO_PENDIENTE) || 0);
+        return Number.isInteger(n) && n > 0 ? n : 0;
+    } catch (e) {
+        return 0;   /* sessionStorage puede no estar disponible */
+    }
+}
+
+export function recuerdaPedidoPendiente(id) {
+    try { sessionStorage.setItem(PEDIDO_PENDIENTE, String(id)); } catch (e) { /* sin almacenamiento */ }
+}
+
+export function olvidaPedidoPendiente() {
+    try { sessionStorage.removeItem(PEDIDO_PENDIENTE); } catch (e) { /* sin almacenamiento */ }
+}
+
+/* Una referencia guardada puede haber caducado: otro dispositivo la pago, el
+   comprador cambio de cuenta, o el pedido ya no existe. Se consulta al
+   servidor y se descarta si no se puede reintentar, para que una referencia
+   vieja no bloquee una compra nueva. */
+export async function resuelvePedidoPendiente() {
+    const id = pedidoPendiente();
+    if (!id) return null;
+    try {
+        const res = await api.get('/orders/' + id);
+        const pedido = res.data?.order || res.data;
+        const estado = pedido?.estado_pago;
+        if (estado === 'pendiente' || estado === 'rechazado') {
+            context.pedido_pendiente = id;
+            return id;
+        }
+        olvidaPedidoPendiente();            /* ya pagado, cancelado u otro estado */
+    } catch (e) {
+        olvidaPedidoPendiente();            /* no existe o no es de este usuario */
+    }
+    context.pedido_pendiente = 0;
+    return null;
+}
 const paymentMessage = document.querySelector('[data-payment-message]');
 
 let addressesData = [];
@@ -171,6 +223,16 @@ function updateAddressFields(id) {
 
 async function loadCart() {
     hideCheckoutMessage();
+    /* En modo reintento el carrito no decide nada: el pedido ya existe y sus
+       lineas estan congeladas. Validarlo aqui devolveria 400 por carrito
+       vacio -la guarda de #66- y ese mensaje taparia el del reintento,
+       dejando al comprador con un boton habilitado y un texto que le dice lo
+       contrario. */
+    if (context.pedido_pendiente > 0) {
+        renderEmptyCart(true);
+        updateSubmitState();
+        return;
+    }
     try {
         /* RNF-016: igual que en revalidateCheckout, se elimina el GET /cart
            previo. El carrito vacio se distingue de "todo invalido" por no
@@ -228,8 +290,16 @@ function renderEmptyCart(hasInvalid = false) {
 }
 
 function updateSubmitState() {
-    context.valid = !!(context.direccion_id && context.valid_items.length > 0);
+    /* Con un pedido pendiente el carrito esta vacio por diseño, asi que no
+       puede ser lo que decida si el boton se habilita. */
+    const reintento = context.pedido_pendiente > 0;
+    context.reintento = reintento;
+    context.valid = reintento || !!(context.direccion_id && context.valid_items.length > 0);
     if(submitBtn) submitBtn.disabled = !context.valid;
+    if(reintento) {
+        showCheckoutMessage('Tienes el pedido ' + context.pedido_pendiente
+            + ' pendiente de pago. Al continuar se reintentara ese pedido, no se creara uno nuevo.');
+    }
 }
 
 async function init() {
@@ -240,6 +310,9 @@ async function init() {
     }
 
     await loadAddresses();
+    /* Antes de leer el carrito: con un pedido pendiente, el carrito vacio es
+       lo esperado y no debe deshabilitar el boton. */
+    await resuelvePedidoPendiente();
     await loadCart();
 }
 
