@@ -53,17 +53,37 @@ function limpia(texto){ return texto.replace(SUPLENTE_SUELTO, '\uFFFD'); }
    solo encamina el detalle por la normalizacion, que no cambia nada mas. */
 const SUPLENTE_ESCAPADO = /\\u[dD][89a-fA-F][0-9a-fA-F]{2}/;
 
+/* Los objetos reconstruidos se crean SIN PROTOTIPO. Sobre un `{}` corriente,
+   `salida['__proto__'] = v` dispara el `setter` heredado de
+   `Object.prototype` y no crea ninguna propiedad: la clave desaparecia del
+   registro sin avisar. Medido contra 4db075a en los dos caminos, el de
+   normalizacion y el de recorte. `JSON.parse` si la crea como propiedad
+   propia, de modo que un detalle puede traerla legitimamente, y
+   `JSON.stringify` serializa igual un objeto sin prototipo. */
+function objetoLlano(){ return Object.create(null); }
+
+/* Dos claves distintas pueden volverse la misma al sustituir el suplente
+   suelto por U+FFFD. Se conserva la primera y se declara la colision, en
+   lugar de dejar que la segunda pise a la primera en silencio. */
+function pon(salida, clave, valor, avisos){
+  if (Object.prototype.hasOwnProperty.call(salida, clave)) {
+    avisos.add('claves_colisionadas');
+    return;
+  }
+  salida[clave] = valor;
+}
+
 /* Limpia sin recortar. El camino rapido la necesita aparte de `acota`:
    aquel aplica ademas las cotas de anchura y profundidad, que no vienen al
    caso cuando el documento ya cabe.
    Se le pasa SIEMPRE el valor plano, nunca el detalle original: ver la nota
    de `safeDetail`. */
-function normaliza(valor){
+function normaliza(valor, avisos){
   if (typeof valor === 'string') return limpia(valor);
   if (valor === null || typeof valor !== 'object') return valor;
-  if (Array.isArray(valor)) return valor.map(normaliza);
-  const salida = {};
-  for (const k of Object.keys(valor)) salida[limpia(k)] = normaliza(valor[k]);
+  if (Array.isArray(valor)) return valor.map((v) => normaliza(v, avisos));
+  const salida = objetoLlano();
+  for (const k of Object.keys(valor)) pon(salida, limpia(k), normaliza(valor[k], avisos), avisos);
   return salida;
 }
 
@@ -92,10 +112,10 @@ function acota(valor, maximo, nivel, recortadas){
     if (valor.length > ANCHURA) { recortadas.add('elementos'); corto.push('…'); }
     return corto;
   }
-  const salida = {};
+  const salida = objetoLlano();
   const claves = Object.keys(valor).slice(0, ANCHURA);
   if (Object.keys(valor).length > claves.length) recortadas.add('claves');
-  for (const k of claves) salida[limpia(k)] = acota(valor[k], maximo, nivel + 1, recortadas);
+  for (const k of claves) pon(salida, limpia(k), acota(valor[k], maximo, nivel + 1, recortadas), recortadas);
   return salida;
 }
 
@@ -135,9 +155,26 @@ function safeDetail(d){
   try { plano = JSON.parse(entero.t); }
   catch (e) { return reemplazo('detalle no releible', { _causa: e?.name || 'Error' }); }
 
+  /* Anade al documento la lista de lo que se perdio por el camino. Se usa
+     tanto tras normalizar como tras recortar. El esparcido conserva
+     `__proto__` como propiedad propia; la asignacion, no. */
+  const conMarca = (texto, avisos) => {
+    const obj = JSON.parse(texto);
+    const marcado = (obj !== null && typeof obj === 'object' && !Array.isArray(obj))
+      ? { ...obj, [CLAVE_RECORTE]: [...avisos] }
+      : { [CLAVE_RECORTE]: [...avisos], _valor: obj };
+    return JSON.stringify(marcado);
+  };
+
   if (cabe) {
-    const limpio = serializa(normaliza(plano));
-    if (limpio.t && bytes(limpio.t) <= LIMITE_DETALLE) return limpio.t;
+    const avisos = new Set();
+    const limpio = serializa(normaliza(plano, avisos));
+    if (limpio.t) {
+      const texto = avisos.size ? conMarca(limpio.t, avisos) : limpio.t;
+      if (bytes(texto) <= LIMITE_DETALLE) return texto;
+    }
+    /* Si con la marca ya no cabe, sigue por la biseccion: alli se recorta y
+       se vuelve a marcar. Callar el aviso para que quepa no es opcion. */
   }
 
   /* Biseccion sobre la longitud permitida a cada cadena -en puntos de
@@ -158,13 +195,6 @@ function safeDetail(d){
 
   /* La marca va fuera de la biseccion, asi que hay que reservarle sitio: si
      al anadirla el documento se pasa, se vuelve a acotar con menos margen. */
-  const conMarca = (texto, recortadas) => {
-    const obj = JSON.parse(texto);
-    const marcado = (obj !== null && typeof obj === 'object' && !Array.isArray(obj))
-      ? { ...obj, [CLAVE_RECORTE]: [...recortadas] }
-      : { [CLAVE_RECORTE]: [...recortadas], _valor: obj };
-    return JSON.stringify(marcado);
-  };
   let salida = conMarca(mejor.texto, mejor.recortadas);
   let margen = 0;
   while (bytes(salida) > LIMITE_DETALLE && margen < LIMITE_DETALLE) {

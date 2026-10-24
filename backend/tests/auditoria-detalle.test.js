@@ -309,6 +309,71 @@ describe('#107 — se conserva lo que `JSON.stringify` ya habia decidido', () =>
   });
 });
 
+describe('#107 — reconstruir el documento no pierde claves', () => {
+  /* `normaliza` y `acota` rehacian el objeto sobre un `{}` corriente, y ahi
+     `salida['__proto__'] = v` dispara el `setter` heredado de
+     `Object.prototype`: no crea propiedad ninguna y la clave desaparecia
+     del registro sin avisar. Medido contra 4db075a en los dos caminos.
+
+     Ojo al construir los casos: el literal {'__proto__': v} FIJA EL
+     PROTOTIPO en vez de crear la clave, asi que una prueba escrita con un
+     literal no probaria nada -el primer control que escribi para esto no
+     probaba nada por eso-. Hay que partir de `JSON.parse`, que si la crea
+     como propiedad propia, igual que haria un detalle real llegado por
+     HTTP. */
+  const conProto = (txt) => JSON.parse(txt);
+
+  const CLAVES = [
+    ['__proto__ junto a un suplente corto', '{"__proto__":{"a":1},"s":"\\ud83d","normal":"ok"}'],
+    ['__proto__ en un detalle largo', '{"__proto__":{"a":1},"texto":"' + x(3000) + '","normal":"ok"}'],
+    ['__proto__ como unica clave', '{"__proto__":"valor"}'],
+    ['constructor y prototype', '{"constructor":"c","prototype":"p","s":"\\ud83d"}'],
+    ['__proto__ anidado', '{"a":{"__proto__":"hondo"},"s":"\\ud83d"}'],
+  ];
+
+  for (const [nombre, texto] of CLAVES) {
+    test(nombre, async () => {
+      banco.exigeBanco(ctx);
+      const entrada = conProto(texto);
+      const esperadas = Object.keys(entrada);
+      const salida = safeDetail(entrada);
+      const obj = JSON.parse(salida);
+      for (const k of esperadas) {
+        assert.ok(Object.prototype.hasOwnProperty.call(obj, k),
+          `la clave ${JSON.stringify(k)} no debe desaparecer del registro`);
+      }
+      await assert.doesNotReject(ctx.pool.query('INSERT INTO sonda_detalle (d) VALUES (?)', [salida]));
+    });
+  }
+
+  test('el objeto reconstruido no queda con el prototipo contaminado', () => {
+    banco.exigeBanco(ctx);
+    const salida = safeDetail(conProto('{"__proto__":{"colado":1},"s":"\\ud83d"}'));
+    assert.equal({}.colado, undefined, 'nada debe haberse colado en Object.prototype');
+    assert.deepEqual(JSON.parse(salida).__proto__, { colado: 1 },
+      'y la clave debe seguir siendo un dato normal');
+  });
+
+  test('dos claves que colisionan al limpiar: se conserva una y se declara', () => {
+    banco.exigeBanco(ctx);
+    /* U+D800 y U+DC00 sueltos se sustituyen los dos por U+FFFD, de modo que
+       dos claves distintas se vuelven una. Pisar la primera en silencio
+       seria la misma clase de perdida que el `__proto__`. */
+    const salida = safeDetail(JSON.parse('{"\\ud800":"primera","\\udc00":"segunda","normal":1}'));
+    const obj = JSON.parse(salida);
+    assert.equal(obj.normal, 1, 'las claves ordinarias no se tocan');
+    assert.equal(obj['\uFFFD'], 'primera', 'se conserva la primera, no la ultima');
+    assert.ok(obj._recortado.includes('claves_colisionadas'),
+      'la colision debe declararse, no ocurrir en silencio');
+  });
+
+  test('sin colision no aparece la marca', () => {
+    banco.exigeBanco(ctx);
+    const obj = JSON.parse(safeDetail(JSON.parse('{"a":"\\ud83d","b":"ok"}')));
+    assert.ok(!('_recortado' in obj), 'limpiar sin perder nada no es un recorte');
+  });
+});
+
 describe('#107 — control negativo: el serializador anterior falla esta bateria', () => {
   /* Si esta prueba deja de fallar con el algoritmo viejo, la bateria ha
      dejado de discriminar y las demas no prueban nada. */
