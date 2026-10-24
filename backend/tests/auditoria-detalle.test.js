@@ -239,6 +239,76 @@ describe('#107 — suplentes sueltos, sean cortos o largos', () => {
   });
 });
 
+describe('#107 — se conserva lo que `JSON.stringify` ya habia decidido', () => {
+  /* `normaliza` y `acota` recorrian el OBJETO ORIGINAL en vez de la
+     representacion serializada, y eso rompia dos cosas a la vez:
+
+       · una `Date` desaparecia. `Object.keys(new Date())` esta vacio, asi
+         que la copia quedaba en {} en lugar de su cadena ISO. Ocurria en
+         los dos caminos, el de normalizacion y el de recorte.
+       · un objeto con ciclo y `toJSON` lo resolvia `JSON.stringify` sin
+         problema, pero el recorrido volvia a entrar en el ciclo y lanzaba
+         RangeError: justo la clase de excepcion que este serializador
+         existe para no provocar.
+
+     El oraculo de este bloque es el propio `JSON.stringify`: lo que
+     `safeDetail` guarde debe coincidir con lo que aquel habria guardado,
+     salvo por el recorte y la limpieza, que se declaran aparte. */
+  const FECHA = new Date('2026-10-23T19:00:00.000Z');
+  const ISO = '2026-10-23T19:00:00.000Z';
+  const ALTO = '\uD83D';
+
+  /* Ciclo que `toJSON` resuelve: stringify termina, recorrerlo no. */
+  const conToJSON = { nombre: 'pedido' };
+  conToJSON.padre = conToJSON;
+  conToJSON.toJSON = function () { return { nombre: this.nombre, resumen: 'ok' }; };
+
+  test('una fecha sobrevive a que otro campo obligue a normalizar', () => {
+    banco.exigeBanco(ctx);
+    const obj = JSON.parse(safeDetail({ fecha: FECHA, respuesta: ALTO }));
+    assert.equal(obj.fecha, ISO, 'la fecha no debe convertirse en {}');
+  });
+
+  test('una fecha sobrevive al camino de recorte', () => {
+    banco.exigeBanco(ctx);
+    const obj = JSON.parse(safeDetail({ fecha: FECHA, texto: x(3000) }));
+    assert.equal(obj.fecha, ISO);
+  });
+
+  test('un objeto con ciclo y toJSON no provoca recursion', () => {
+    banco.exigeBanco(ctx);
+    for (const entrada of [{ d: conToJSON, t: ALTO }, { d: conToJSON, texto: x(3000) }]) {
+      let salida;
+      assert.doesNotThrow(() => { salida = safeDetail(entrada); },
+        'toJSON resuelve el ciclo; recorrer el original lo reintroducia');
+      assert.deepEqual(JSON.parse(salida).d, { nombre: 'pedido', resumen: 'ok' });
+    }
+  });
+
+  test('normalizar no pierde claves que caben', () => {
+    banco.exigeBanco(ctx);
+    const ancho = Object.fromEntries([['s', ALTO],
+      ...Array.from({ length: 20 }, (_, i) => ['f' + i, FECHA])]);
+    const obj = JSON.parse(safeDetail(ancho));
+    assert.equal(Object.keys(obj).length, 21, 'no debe perder ninguna clave');
+    assert.equal(obj.f0, ISO, 'ni convertir las fechas en objetos vacios');
+  });
+
+  test('el recorte conserva la semantica, no solo el texto', () => {
+    banco.exigeBanco(ctx);
+    /* Un detalle largo con varias representaciones personalizadas. */
+    const raro = {
+      fecha: FECHA,
+      conToJSON: { toJSON: () => 'representacion propia' },
+      texto: x(3000),
+    };
+    const obj = JSON.parse(safeDetail(raro));
+    assert.equal(obj.fecha, ISO);
+    assert.equal(obj.conToJSON, 'representacion propia');
+    assert.ok(obj.texto.length > 100, 'y sigue conservando parte del texto largo');
+  });
+});
+
 describe('#107 — control negativo: el serializador anterior falla esta bateria', () => {
   /* Si esta prueba deja de fallar con el algoritmo viejo, la bateria ha
      dejado de discriminar y las demas no prueban nada. */

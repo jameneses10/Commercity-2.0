@@ -55,8 +55,9 @@ const SUPLENTE_ESCAPADO = /\\u[dD][89a-fA-F][0-9a-fA-F]{2}/;
 
 /* Limpia sin recortar. El camino rapido la necesita aparte de `acota`:
    aquel aplica ademas las cotas de anchura y profundidad, que no vienen al
-   caso cuando el documento ya cabe. No hace falta guardia de ciclos: solo
-   se llama cuando el valor ya se serializo sin error. */
+   caso cuando el documento ya cabe.
+   Se le pasa SIEMPRE el valor plano, nunca el detalle original: ver la nota
+   de `safeDetail`. */
 function normaliza(valor){
   if (typeof valor === 'string') return limpia(valor);
   if (valor === null || typeof valor !== 'object') return valor;
@@ -75,7 +76,8 @@ function recorta(texto, maximo){
 
 /* Copia acotando cada cadena. No sigue mas de `PROFUNDIDAD` niveles ni mas
    de `ANCHURA` elementos: un detalle patologico no debe costar mas que la
-   operacion que audita. */
+   operacion que audita.
+   Igual que `normaliza`, recibe el valor plano y no el detalle original. */
 const PROFUNDIDAD = 6;
 const ANCHURA = 50;
 function acota(valor, maximo, nivel, recortadas){
@@ -116,8 +118,25 @@ function safeDetail(d){
   const sucio = SUPLENTE_ESCAPADO.test(entero.t);
   const cabe = bytes(entero.t) <= LIMITE_DETALLE;
   if (cabe && !sucio) return entero.t;
+
+  /* A partir de aqui se trabaja sobre el valor RECONSTRUIDO de la cadena ya
+     serializada, nunca sobre el detalle original. Es JSON puro -sin `Date`,
+     sin `toJSON`, sin ciclos- y es exactamente lo que se iba a guardar.
+     Recorrer el original hacia dos daños, los dos medidos contra 5d72e24:
+       · una fecha desaparecia. `Object.keys(new Date())` esta vacio, asi que
+         la copia quedaba en {} en vez de su cadena ISO. Pasaba tanto al
+         normalizar como al recortar.
+       · un objeto con ciclo y `toJSON` lo resolvia `JSON.stringify`, pero el
+         recorrido volvia a entrar en el ciclo: RangeError, justo la clase de
+         excepcion que este serializador existe para no provocar.
+     `JSON.parse` aqui no puede fallar: el texto lo produjo `JSON.stringify`.
+     Aun asi se protege, porque la funcion promete no lanzar. */
+  let plano;
+  try { plano = JSON.parse(entero.t); }
+  catch (e) { return reemplazo('detalle no releible', { _causa: e?.name || 'Error' }); }
+
   if (cabe) {
-    const limpio = serializa(normaliza(d));
+    const limpio = serializa(normaliza(plano));
     if (limpio.t && bytes(limpio.t) <= LIMITE_DETALLE) return limpio.t;
   }
 
@@ -131,7 +150,7 @@ function safeDetail(d){
   while (bajo <= alto) {
     const medio = Math.floor((bajo + alto) / 2);
     const recortadas = new Set();
-    const salida = serializa(acota(d, medio, 0, recortadas));
+    const salida = serializa(acota(plano, medio, 0, recortadas));
     if (salida.t && bytes(salida.t) <= LIMITE_DETALLE) { mejor = { texto: salida.t, recortadas }; bajo = medio + 1; }
     else alto = medio - 1;
   }
@@ -151,7 +170,7 @@ function safeDetail(d){
   while (bytes(salida) > LIMITE_DETALLE && margen < LIMITE_DETALLE) {
     margen += Math.max(1, Math.ceil((bytes(salida) - LIMITE_DETALLE) / 2));
     const recortadas = new Set();
-    const acotado = serializa(acota(d, Math.max(0, LIMITE_DETALLE - margen), 0, recortadas));
+    const acotado = serializa(acota(plano, Math.max(0, LIMITE_DETALLE - margen), 0, recortadas));
     if (!acotado.t) break;
     salida = conMarca(acotado.t, recortadas);
   }
