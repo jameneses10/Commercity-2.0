@@ -42,6 +42,30 @@ function serializa(valor){
 const SUPLENTE_SUELTO = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 function limpia(texto){ return texto.replace(SUPLENTE_SUELTO, '\uFFFD'); }
 
+/* Sobre el texto YA SERIALIZADO hay que buscar otra cosa. `JSON.stringify`
+   convierte el suplente suelto en la secuencia ASCII \udXXX, de seis
+   caracteres, donde el patron de arriba no encuentra nada: buscandolo alli,
+   un detalle corto con un suplente entraba por el camino rapido sin pasar
+   nunca por `limpia`. Medido contra 1e348de: {t:'\\uD83D'} devolvia un
+   documento que `JSON.parse` aceptaba y MySQL rechazaba.
+   Un par valido no se escapa, asi que no aparece aqui. Un `\\` literal
+   seguido del texto "ud8.." si da un falso positivo; es inofensivo, porque
+   solo encamina el detalle por la normalizacion, que no cambia nada mas. */
+const SUPLENTE_ESCAPADO = /\\u[dD][89a-fA-F][0-9a-fA-F]{2}/;
+
+/* Limpia sin recortar. El camino rapido la necesita aparte de `acota`:
+   aquel aplica ademas las cotas de anchura y profundidad, que no vienen al
+   caso cuando el documento ya cabe. No hace falta guardia de ciclos: solo
+   se llama cuando el valor ya se serializo sin error. */
+function normaliza(valor){
+  if (typeof valor === 'string') return limpia(valor);
+  if (valor === null || typeof valor !== 'object') return valor;
+  if (Array.isArray(valor)) return valor.map(normaliza);
+  const salida = {};
+  for (const k of Object.keys(valor)) salida[limpia(k)] = normaliza(valor[k]);
+  return salida;
+}
+
 /* Corta por puntos de codigo: `slice` sobre la cadena partiria un emoji o
    cualquier caracter fuera del plano basico en dos mitades invalidas. */
 function recorta(texto, maximo){
@@ -87,15 +111,13 @@ function safeDetail(d){
   }
   if (entero.t === null) return null;          /* p.ej. una funcion suelta */
 
-  /* Camino rapido solo si ademas no hay nada que limpiar. `test` con la
-     bandera /g conserva posicion entre llamadas, asi que se reinicia. */
-  SUPLENTE_SUELTO.lastIndex = 0;
-  const sucio = SUPLENTE_SUELTO.test(entero.t);
-  SUPLENTE_SUELTO.lastIndex = 0;
+  /* Camino rapido solo si ademas no hay nada que limpiar. Se mira la forma
+     escapada porque es la que queda tras serializar. */
+  const sucio = SUPLENTE_ESCAPADO.test(entero.t);
   const cabe = bytes(entero.t) <= LIMITE_DETALLE;
   if (cabe && !sucio) return entero.t;
   if (cabe) {
-    const limpio = serializa(acota(d, LIMITE_DETALLE, 0, new Set()));
+    const limpio = serializa(normaliza(d));
     if (limpio.t && bytes(limpio.t) <= LIMITE_DETALLE) return limpio.t;
   }
 

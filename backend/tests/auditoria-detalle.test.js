@@ -175,6 +175,70 @@ describe('#107 — el registro dice lo que falta y no filtra lo que guarda', () 
   });
 });
 
+describe('#107 — suplentes sueltos, sean cortos o largos', () => {
+  /* El caso corto escapa a la biseccion: entra por el camino rapido. La
+     primera correccion solo miraba la cadena ya serializada, donde
+     `JSON.stringify` ha convertido el suplente en el texto ASCII \udXXX, de
+     modo que {t:'\uD83D'} salia sin limpiar y MySQL lo rechazaba aunque
+     `JSON.parse` lo aceptase. De ahi que la longitud sea una dimension de
+     esta tabla y no un detalle. */
+  const ALTO = '\uD83D';          /* mitad alta sin su pareja */
+  const BAJO = '\uDC00';          /* mitad baja sin su pareja */
+  const EMOJI = '\u{1F600}';      /* par completo: no debe tocarse */
+
+  const SUPLENTES = [
+    ['alto suelto, corto', { t: ALTO }],
+    ['bajo suelto, corto', { t: BAJO }],
+    ['alto suelto en la clave, corto', { [ALTO]: 'x' }],
+    ['bajo suelto en la clave, corto', { [BAJO]: 'x' }],
+    ['alto suelto, anidado y corto', { a: { b: [ALTO] } }],
+    ['alto suelto, largo', { t: ALTO + x(2100) }],
+    ['bajo suelto, largo', { t: BAJO + x(2100) }],
+    ['alto suelto en la clave, largo', { [ALTO]: x(2100) }],
+    ['los dos sueltos y en orden invertido', { t: BAJO + ALTO }],
+  ];
+
+  for (const [nombre, entrada] of SUPLENTES) {
+    test(nombre, async () => {
+      banco.exigeBanco(ctx);
+      const salida = safeDetail(entrada);
+      assert.doesNotThrow(() => JSON.parse(salida));
+      await assert.doesNotReject(
+        ctx.pool.query('INSERT INTO sonda_detalle (d) VALUES (?)', [salida]),
+        'MySQL debe aceptar la salida; `JSON.parse` solo no lo garantiza'
+      );
+      assert.ok(bytes(salida) <= LIMITE);
+    });
+  }
+
+  test('un par valido se conserva intacto, corto y largo', async () => {
+    banco.exigeBanco(ctx);
+    for (const entrada of [{ t: EMOJI }, { t: 'hola ' + EMOJI + ' mundo' }]) {
+      const salida = safeDetail(entrada);
+      assert.ok(JSON.parse(salida).t.includes(EMOJI),
+        'neutralizar los sueltos no debe tocar los pares completos');
+      await assert.doesNotReject(ctx.pool.query('INSERT INTO sonda_detalle (d) VALUES (?)', [salida]));
+    }
+  });
+
+  test('un detalle corto y limpio sale tal cual, sin marca de recorte', () => {
+    banco.exigeBanco(ctx);
+    const salida = safeDetail({ metodo: 'sandbox_card', estado_pago: 'pagado' });
+    assert.equal(salida, JSON.stringify({ metodo: 'sandbox_card', estado_pago: 'pagado' }),
+      'el camino rapido no debe alterar un detalle que no lo necesita');
+  });
+
+  test('un objeto ancho pero pequeno no se recorta por pasar a normalizar', () => {
+    banco.exigeBanco(ctx);
+    /* Mas claves que ANCHURA, pero cabe de sobra: normalizar no debe
+       aplicarle las cotas de anchura, que son del camino de recorte. */
+    const ancho = Object.fromEntries(Array.from({ length: 80 }, (_, i) => ['k' + i, ALTO]));
+    const obj = JSON.parse(safeDetail(ancho));
+    assert.equal(Object.keys(obj).length, 80, 'no debe perder claves');
+    assert.ok(!('_recortado' in obj), 'no es un recorte, es una normalizacion');
+  });
+});
+
 describe('#107 — control negativo: el serializador anterior falla esta bateria', () => {
   /* Si esta prueba deja de fallar con el algoritmo viejo, la bateria ha
      dejado de discriminar y las demas no prueban nada. */
